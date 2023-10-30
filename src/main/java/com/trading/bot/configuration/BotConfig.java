@@ -28,12 +28,15 @@ import java.io.IOException;
 import java.util.Calendar;
 import java.util.List;
 
-import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min15;
-import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
+import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min1;
 
 @Configuration
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
+
+    private final int trainCycles = 1440;
+    private final int dataSize = 40;
+    private final int outputSize = 8;
 
     @Bean
     public Exchange getXChangeExchange() {
@@ -49,55 +52,63 @@ public class BotConfig {
     }
 
     @Bean
-    public MultiLayerNetwork getModel(Exchange exchange) throws IOException {
-        Calendar startCalendar = Calendar.getInstance();
-        startCalendar.add(Calendar.DATE, -3);
-        final Long startDate = startCalendar.getTimeInMillis() / 1000L;
-        final Long endDate = Calendar.getInstance().getTimeInMillis() / 1000L;
-        final List<KucoinKline> kucoinKlines;
-        final CurrencyPair currencyPair = new CurrencyPair("BTC", "USDT");
-
-        kucoinKlines = ((KucoinMarketDataService) exchange.getMarketDataService())
-                .getKucoinKlines(currencyPair, startDate, endDate, min5);
-
-        float[][] floatData = new float[200][100];
-        float[][] floatLabels = new float[200][9];
-        for (int i = 0; i < 200; i++) {
-            for (int y = 0; y < 20; y++) {
-                floatData[i][y * 5] = kucoinKlines.get(y + i + 1).getOpen().floatValue() - kucoinKlines.get(i).getClose().floatValue();
-                floatData[i][y * 5 + 1] = kucoinKlines.get(y + i + 1).getClose().floatValue() - kucoinKlines.get(i).getClose().floatValue();
-                floatData[i][y * 5 + 2] = kucoinKlines.get(y + i + 1).getHigh().floatValue() - kucoinKlines.get(i).getClose().floatValue();
-                floatData[i][y * 5 + 3] = kucoinKlines.get(y + i + 1).getLow().floatValue() - kucoinKlines.get(i).getClose().floatValue();
-                floatData[i][y * 5 + 4] = kucoinKlines.get(y + i + 1).getVolume().floatValue();
-            }
-
-            int delta = (kucoinKlines.get(i).getClose().subtract(kucoinKlines.get(i + 1).getClose()).intValue() + 80) / 20;
-            delta = delta < 0 ? 0 : delta;
-            delta = delta > 8 ? 8 : delta;
-            floatLabels[i][delta] = 1.0F;
-        }
-        INDArray trainingData = Nd4j.create(floatData);
-        INDArray trainingLabels = Nd4j.create(floatLabels);
-
+    public MultiLayerConfiguration getMultiLayerConfiguration() {
         logger.info("Build model....");
-        MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
+        return new NeuralNetConfiguration.Builder()
                 .seed(6)
                 .activation(Activation.TANH)
                 .weightInit(WeightInit.XAVIER)
                 .updater(new Sgd(0.1))
                 .l2(1e-4)
                 .list()
-                .layer(new DenseLayer.Builder().nIn(100).nOut(100)
+                .layer(new DenseLayer.Builder().nIn(dataSize).nOut(320)
                         .build())
-                .layer(new DenseLayer.Builder().nIn(100).nOut(20)
+                .layer(new DenseLayer.Builder().nIn(320).nOut(160)
                         .build())
-                .layer( new OutputLayer.Builder(LossFunctions.LossFunction.NEGATIVELOGLIKELIHOOD)
+                .layer(new DenseLayer.Builder().nIn(160).nOut(40)
+                        .build())
+                .layer(new DenseLayer.Builder().nIn(40).nOut(16)
+                        .build())
+                .layer(new OutputLayer.Builder(LossFunctions.LossFunction.NEGATIVELOGLIKELIHOOD)
                         .activation(Activation.SOFTMAX) //Override the global TANH activation with softmax for this layer
-                        .nIn(20).nOut(9).build())
+                        .nIn(16).nOut(outputSize).build())
                 .build();
+    }
+
+    @Bean
+    public MultiLayerNetwork getModel(Exchange exchange, MultiLayerConfiguration multiLayerConfiguration) throws IOException {
+        Calendar startCalendar = Calendar.getInstance();
+        startCalendar.add(Calendar.DATE, -3);
+        final Long startDate = startCalendar.getTimeInMillis() / 1000L;
+        Calendar endCalendar = Calendar.getInstance();
+        endCalendar.add(Calendar.DATE, -1);
+        final Long endDate = endCalendar.getTimeInMillis() / 1000L;
+        final List<KucoinKline> kucoinKlines;
+        final CurrencyPair currencyPair = new CurrencyPair("BTC", "USDT");
+
+        kucoinKlines = ((KucoinMarketDataService) exchange.getMarketDataService())
+                .getKucoinKlines(currencyPair, startDate, endDate, min1);
+
+        float[][] floatData = new float[trainCycles][dataSize];
+        float[][] floatLabels = new float[trainCycles][outputSize];
+        for (int i = 0; i < trainCycles; i++) {
+            for (int y = 0; y < 10; y++) {
+                floatData[i][y * 4] = kucoinKlines.get(y + i + 1).getClose().floatValue() - kucoinKlines.get(i).getClose().floatValue();
+                floatData[i][y * 4 + 1] = kucoinKlines.get(y + i + 1).getHigh().floatValue() - kucoinKlines.get(i).getClose().floatValue();
+                floatData[i][y * 4 + 2] = kucoinKlines.get(y + i + 1).getLow().floatValue() - kucoinKlines.get(i).getClose().floatValue();
+                floatData[i][y * 4 + 3] = kucoinKlines.get(y + i + 1).getVolume().floatValue();
+            }
+
+            int delta = (kucoinKlines.get(i).getClose().subtract(kucoinKlines.get(i + 1).getClose()).intValue() + 40) / 10;
+            delta = Math.max(delta, 0);
+            delta = Math.min(delta, 7);
+            floatLabels[i][delta] = 1.0F;
+        }
+        INDArray trainingData = Nd4j.create(floatData);
+        INDArray trainingLabels = Nd4j.create(floatLabels);
 
         //run the model
-        MultiLayerNetwork model = new MultiLayerNetwork(conf);
+        MultiLayerNetwork model = new MultiLayerNetwork(multiLayerConfiguration);
         model.init();
         //record score once every 100 iterations
         model.setListeners(new ScoreIterationListener(100));
