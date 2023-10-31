@@ -15,7 +15,6 @@ import org.knowm.xchange.kucoin.KucoinExchange;
 import org.knowm.xchange.kucoin.KucoinMarketDataService;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.nd4j.linalg.activations.Activation;
-import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.learning.config.Sgd;
 import org.nd4j.linalg.lossfunctions.LossFunctions;
@@ -34,9 +33,10 @@ import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min1;
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
 
-    public static final int TRAIN_CYCLES = 480;
+    public static final int TRAIN_CYCLES = 1440;
     public static final int OUTPUT_SIZE = 8;
-    public static final int HISTORY_CYCLES = 24;
+    public static final int TRAIN_DEEP = 24;
+    public static final int PREDICT_DEEP = 8;
 
     @Bean
     public Exchange getXChangeExchange() {
@@ -58,10 +58,10 @@ public class BotConfig {
                 .seed(6)
                 .activation(Activation.TANH)
                 .weightInit(WeightInit.XAVIER)
-                .updater(new Sgd(0.1))
+                .updater(new Sgd(0.01))
                 .l2(1e-4)
                 .list()
-                .layer(new DenseLayer.Builder().nIn(HISTORY_CYCLES * 4).nOut(4096)
+                .layer(new DenseLayer.Builder().nIn(TRAIN_DEEP * 4).nOut(4096)
                         .build())
                 .layer(new DenseLayer.Builder().nIn(4096).nOut(512)
                         .build())
@@ -87,17 +87,17 @@ public class BotConfig {
         final List<KucoinKline> kucoinKlines = ((KucoinMarketDataService) exchange.getMarketDataService())
                 .getKucoinKlines(currencyPair, startDate, endDate, min1);
 
-        float[][] floatData = new float[TRAIN_CYCLES][HISTORY_CYCLES * 4];
+        float[][] floatData = new float[TRAIN_CYCLES][TRAIN_DEEP * 4];
         float[][] floatLabels = new float[TRAIN_CYCLES][OUTPUT_SIZE];
         for (int i = 0; i < TRAIN_CYCLES; i++) {
-            for (int y = 0; y < HISTORY_CYCLES; y++) {
-                floatData[i][y * 4] = kucoinKlines.get(y + i + 5).getClose().floatValue() - kucoinKlines.get(i).getClose().floatValue();
-                floatData[i][y * 4 + 1] = kucoinKlines.get(y + i + 5).getHigh().floatValue() - kucoinKlines.get(i).getClose().floatValue();
-                floatData[i][y * 4 + 2] = kucoinKlines.get(y + i + 5).getLow().floatValue() - kucoinKlines.get(i).getClose().floatValue();
-                floatData[i][y * 4 + 3] = kucoinKlines.get(y + i + 5).getVolume().floatValue();
+            for (int y = 0; y < TRAIN_DEEP; y++) {
+                floatData[i][y * 4] = kucoinKlines.get(y + i + PREDICT_DEEP).getClose().floatValue() - kucoinKlines.get(i).getClose().floatValue();
+                floatData[i][y * 4 + 1] = kucoinKlines.get(y + i + PREDICT_DEEP).getHigh().floatValue() - kucoinKlines.get(i).getClose().floatValue();
+                floatData[i][y * 4 + 2] = kucoinKlines.get(y + i + PREDICT_DEEP).getLow().floatValue() - kucoinKlines.get(i).getClose().floatValue();
+                floatData[i][y * 4 + 3] = kucoinKlines.get(y + i + PREDICT_DEEP).getVolume().floatValue();
             }
 
-            int delta = (kucoinKlines.get(i).getClose().subtract(kucoinKlines.get(i + 8).getClose()).intValue() + 80) / 20;
+            int delta = (kucoinKlines.get(i).getClose().subtract(kucoinKlines.get(i + PREDICT_DEEP).getClose()).intValue() + 80) / 20;
             delta = Math.max(delta, 0);
             delta = Math.min(delta, 7);
             floatLabels[i][delta] = 1.0F;
@@ -109,7 +109,7 @@ public class BotConfig {
         //record score once every 100 iterations
         model.setListeners(new ScoreIterationListener(100));
 
-        for(int i = 0; i < 1000; i++ ) {
+        for(int i = 0; i < 1600; i++ ) {
             model.fit(Nd4j.create(floatData), Nd4j.create(floatLabels));
         }
         return model;

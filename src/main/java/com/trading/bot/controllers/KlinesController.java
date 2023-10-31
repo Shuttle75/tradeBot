@@ -44,17 +44,17 @@ public class KlinesController {
         final List<KucoinKline> kucoinKlines = ((KucoinMarketDataService) exchange.getMarketDataService())
                 .getKucoinKlines(currencyPair, startDate, endDate, min1);
 
-        float[][] floatData = new float[TRAIN_CYCLES][HISTORY_CYCLES * 4];
+        float[][] floatData = new float[TRAIN_CYCLES][TRAIN_DEEP * 4];
         float[][] floatLabels = new float[TRAIN_CYCLES][OUTPUT_SIZE];
         for (int i = 0; i < TRAIN_CYCLES; i++) {
-            for (int y = 0; y < HISTORY_CYCLES; y++) {
-                floatData[i][y * 4] = kucoinKlines.get(y + i + 5).getClose().floatValue() - kucoinKlines.get(i).getClose().floatValue();
-                floatData[i][y * 4 + 1] = kucoinKlines.get(y + i + 5).getHigh().floatValue() - kucoinKlines.get(i).getClose().floatValue();
-                floatData[i][y * 4 + 2] = kucoinKlines.get(y + i + 5).getLow().floatValue() - kucoinKlines.get(i).getClose().floatValue();
-                floatData[i][y * 4 + 3] = kucoinKlines.get(y + i + 5).getVolume().floatValue();
+            for (int y = 0; y < TRAIN_DEEP; y++) {
+                floatData[i][y * 4] = kucoinKlines.get(y + i + PREDICT_DEEP).getClose().floatValue() - kucoinKlines.get(i).getClose().floatValue();
+                floatData[i][y * 4 + 1] = kucoinKlines.get(y + i + PREDICT_DEEP).getHigh().floatValue() - kucoinKlines.get(i).getClose().floatValue();
+                floatData[i][y * 4 + 2] = kucoinKlines.get(y + i + PREDICT_DEEP).getLow().floatValue() - kucoinKlines.get(i).getClose().floatValue();
+                floatData[i][y * 4 + 3] = kucoinKlines.get(y + i + PREDICT_DEEP).getVolume().floatValue();
             }
 
-            int delta = (kucoinKlines.get(i).getClose().subtract(kucoinKlines.get(i + 8).getClose()).intValue() + 80) / 20;
+            int delta = (kucoinKlines.get(i).getClose().subtract(kucoinKlines.get(i + PREDICT_DEEP).getClose()).intValue() + 80) / 20;
             delta = Math.max(delta, 0);
             delta = Math.min(delta, 7);
             floatLabels[i][delta] = 1.0F;
