@@ -34,9 +34,9 @@ import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min1;
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
 
-    private final int trainCycles = 1440;
-    private final int dataSize = 40;
-    private final int outputSize = 8;
+    public static final int TRAIN_CYCLES = 480;
+    public static final int OUTPUT_SIZE = 8;
+    public static final int HISTORY_CYCLES = 24;
 
     @Bean
     public Exchange getXChangeExchange() {
@@ -61,17 +61,15 @@ public class BotConfig {
                 .updater(new Sgd(0.1))
                 .l2(1e-4)
                 .list()
-                .layer(new DenseLayer.Builder().nIn(dataSize).nOut(320)
+                .layer(new DenseLayer.Builder().nIn(HISTORY_CYCLES * 4).nOut(4096)
                         .build())
-                .layer(new DenseLayer.Builder().nIn(320).nOut(160)
+                .layer(new DenseLayer.Builder().nIn(4096).nOut(512)
                         .build())
-                .layer(new DenseLayer.Builder().nIn(160).nOut(40)
-                        .build())
-                .layer(new DenseLayer.Builder().nIn(40).nOut(16)
+                .layer(new DenseLayer.Builder().nIn(512).nOut(64)
                         .build())
                 .layer(new OutputLayer.Builder(LossFunctions.LossFunction.NEGATIVELOGLIKELIHOOD)
                         .activation(Activation.SOFTMAX) //Override the global TANH activation with softmax for this layer
-                        .nIn(16).nOut(outputSize).build())
+                        .nIn(64).nOut(OUTPUT_SIZE).build())
                 .build();
     }
 
@@ -83,29 +81,27 @@ public class BotConfig {
         Calendar endCalendar = Calendar.getInstance();
         endCalendar.add(Calendar.DATE, -1);
         final Long endDate = endCalendar.getTimeInMillis() / 1000L;
-        final List<KucoinKline> kucoinKlines;
+
         final CurrencyPair currencyPair = new CurrencyPair("BTC", "USDT");
 
-        kucoinKlines = ((KucoinMarketDataService) exchange.getMarketDataService())
+        final List<KucoinKline> kucoinKlines = ((KucoinMarketDataService) exchange.getMarketDataService())
                 .getKucoinKlines(currencyPair, startDate, endDate, min1);
 
-        float[][] floatData = new float[trainCycles][dataSize];
-        float[][] floatLabels = new float[trainCycles][outputSize];
-        for (int i = 0; i < trainCycles; i++) {
-            for (int y = 0; y < 10; y++) {
-                floatData[i][y * 4] = kucoinKlines.get(y + i + 1).getClose().floatValue() - kucoinKlines.get(i).getClose().floatValue();
-                floatData[i][y * 4 + 1] = kucoinKlines.get(y + i + 1).getHigh().floatValue() - kucoinKlines.get(i).getClose().floatValue();
-                floatData[i][y * 4 + 2] = kucoinKlines.get(y + i + 1).getLow().floatValue() - kucoinKlines.get(i).getClose().floatValue();
-                floatData[i][y * 4 + 3] = kucoinKlines.get(y + i + 1).getVolume().floatValue();
+        float[][] floatData = new float[TRAIN_CYCLES][HISTORY_CYCLES * 4];
+        float[][] floatLabels = new float[TRAIN_CYCLES][OUTPUT_SIZE];
+        for (int i = 0; i < TRAIN_CYCLES; i++) {
+            for (int y = 0; y < HISTORY_CYCLES; y++) {
+                floatData[i][y * 4] = kucoinKlines.get(y + i + 5).getClose().floatValue() - kucoinKlines.get(i).getClose().floatValue();
+                floatData[i][y * 4 + 1] = kucoinKlines.get(y + i + 5).getHigh().floatValue() - kucoinKlines.get(i).getClose().floatValue();
+                floatData[i][y * 4 + 2] = kucoinKlines.get(y + i + 5).getLow().floatValue() - kucoinKlines.get(i).getClose().floatValue();
+                floatData[i][y * 4 + 3] = kucoinKlines.get(y + i + 5).getVolume().floatValue();
             }
 
-            int delta = (kucoinKlines.get(i).getClose().subtract(kucoinKlines.get(i + 1).getClose()).intValue() + 40) / 10;
+            int delta = (kucoinKlines.get(i).getClose().subtract(kucoinKlines.get(i + 8).getClose()).intValue() + 80) / 20;
             delta = Math.max(delta, 0);
             delta = Math.min(delta, 7);
             floatLabels[i][delta] = 1.0F;
         }
-        INDArray trainingData = Nd4j.create(floatData);
-        INDArray trainingLabels = Nd4j.create(floatLabels);
 
         //run the model
         MultiLayerNetwork model = new MultiLayerNetwork(multiLayerConfiguration);
@@ -113,8 +109,8 @@ public class BotConfig {
         //record score once every 100 iterations
         model.setListeners(new ScoreIterationListener(100));
 
-        for(int i = 0; i < 2000; i++ ) {
-            model.fit(trainingData, trainingLabels);
+        for(int i = 0; i < 1000; i++ ) {
+            model.fit(Nd4j.create(floatData), Nd4j.create(floatLabels));
         }
         return model;
     }
