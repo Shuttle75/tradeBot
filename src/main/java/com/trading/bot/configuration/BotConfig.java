@@ -26,7 +26,6 @@ import org.springframework.context.annotation.Configuration;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -40,9 +39,9 @@ public class BotConfig {
 
     public static final int TRAIN_CYCLES = 1440;
     public static final int OUTPUT_SIZE = 8;
-    public static final int TRAIN_DEEP = 16;
-    public static final int PREDICT_DEEP = 2;
-    public static final int CURRENCY_DELTA = 10;
+    public static final int TRAIN_DEEP = 24;
+    public static final int PREDICT_DEEP = 1;
+    public static final int CURRENCY_DELTA = 5;
 
     public static final CurrencyPair CURRENCY_PAIR = new CurrencyPair("BTC", "USDT");
 
@@ -66,10 +65,10 @@ public class BotConfig {
                 .seed(6)
                 .activation(Activation.TANH)
                 .weightInit(WeightInit.XAVIER)
-                .updater(new Sgd(0.01))
+                .updater(new Sgd(0.1))
                 .l2(1e-4)
                 .list()
-                .layer(new DenseLayer.Builder().nIn(TRAIN_DEEP).nOut(4096)
+                .layer(new DenseLayer.Builder().nIn(TRAIN_DEEP * 3).nOut(4096)
                         .build())
                 .layer(new DenseLayer.Builder().nIn(4096).nOut(512)
                         .build())
@@ -91,14 +90,17 @@ public class BotConfig {
                 .truncatedTo(ChronoUnit.MINUTES)
                 .toEpochSecond(ZoneOffset.UTC);
 
-        final List<KucoinKline> kucoinKlines = ((KucoinMarketDataService) exchange.getMarketDataService())
-                .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min1);
+        final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
 
-        float[][] floatData = new float[TRAIN_CYCLES][TRAIN_DEEP];
-        int[][] floatLabels = new int[TRAIN_CYCLES][OUTPUT_SIZE];
+        float[][] floatData = new float[TRAIN_CYCLES][TRAIN_DEEP * 3];
+        int[][] intLabels = new int[TRAIN_CYCLES][OUTPUT_SIZE];
         for (int i = 0; i < TRAIN_CYCLES; i++) {
             for (int y = 0; y < TRAIN_DEEP; y++) {
-                floatData[i][y] = calcNumbers(kucoinKlines, i, y, PREDICT_DEEP);
+                floatData[i][y * 3] = kucoinKlines.get(i + y + PREDICT_DEEP).getClose()
+                        .subtract(kucoinKlines.get(i + y + PREDICT_DEEP).getOpen()).floatValue();
+                floatData[i][y * 3 + 1] = kucoinKlines.get(i + y + PREDICT_DEEP).getHigh()
+                        .subtract(kucoinKlines.get(i + y + PREDICT_DEEP).getLow()).floatValue();
+                floatData[i][y * 3 + 2] = kucoinKlines.get(i + y + PREDICT_DEEP).getVolume().floatValue();
             }
 
             int delta = (kucoinKlines.get(i).getClose()
@@ -107,8 +109,11 @@ public class BotConfig {
 
             delta = Math.max(delta, 0);
             delta = Math.min(delta, 7);
-            floatLabels[i][delta] = 1;
+            intLabels[i][delta] = 1;
         }
+
+        INDArray indData = Nd4j.create(floatData);
+        INDArray indLabels = Nd4j.create(intLabels);
 
         //run the model
         MultiLayerNetwork model = new MultiLayerNetwork(config);
@@ -116,31 +121,19 @@ public class BotConfig {
         //record score once every 100 iterations
         model.setListeners(new ScoreIterationListener(100));
 
-        INDArray indData = Nd4j.create(floatData);
-        INDArray indLabels = Nd4j.create(floatLabels);
 
-        for (int i = 0; i < 2000; i++) {
+
+        for (int i = 0; i < 1000; i++) {
             model.fit(indData, indLabels);
         }
         return model;
     }
 
-    public static float calcNumbers(List<KucoinKline> kucoinKlines, int i, int y, int predict) {
-        return getMiddle(kucoinKlines.get(i + y + 1 + predict))
-                .subtract(getMiddle(kucoinKlines.get(i + predict)))
-                .floatValue();
-    }
-
-    public static float calcNumbersDelta(List<KucoinKline> kucoinKlines, int i, int y, int predict) {
-        return getMiddle(kucoinKlines.get(i + y + 1 + predict))
-                .subtract(getMiddle(kucoinKlines.get(i + y + predict)))
-                .setScale(2, RoundingMode.HALF_UP)
-                .floatValue();
-    }
-
-    private static BigDecimal getMiddle(KucoinKline kucoinKline) {
-        return kucoinKline.getOpen()
-                .add(kucoinKline.getClose())
-                .multiply(BigDecimal.valueOf(0.5));
+    public static List<KucoinKline> getKucoinKlines(Exchange exchange, long startDate, long endDate) throws IOException {
+        return ((KucoinMarketDataService) exchange.getMarketDataService())
+                .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min1)
+                .stream()
+ //               .filter(kucoinKline -> kucoinKline.getVolume().floatValue() > 0.5)
+                .toList();
     }
 }

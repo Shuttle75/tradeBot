@@ -2,7 +2,6 @@ package com.trading.bot.controllers;
 
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.knowm.xchange.Exchange;
-import org.knowm.xchange.kucoin.KucoinMarketDataService;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
@@ -19,8 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.trading.bot.configuration.BotConfig.*;
-import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min1;
-
 
 @RestController
 public class KlinesController {
@@ -47,14 +44,17 @@ public class KlinesController {
                 .minusDays(1)
                 .toEpochSecond(ZoneOffset.UTC);
 
-        final List<KucoinKline> kucoinKlines = ((KucoinMarketDataService) exchange.getMarketDataService())
-                .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min1);
+        final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
 
-        float[][] floatData = new float[TRAIN_CYCLES][TRAIN_DEEP];
-        float[][] floatLabels = new float[TRAIN_CYCLES][OUTPUT_SIZE];
+        float[][] floatData = new float[TRAIN_CYCLES][TRAIN_DEEP * 3];
+        int[][] intLabels = new int[TRAIN_CYCLES][OUTPUT_SIZE];
         for (int i = 0; i < TRAIN_CYCLES; i++) {
             for (int y = 0; y < TRAIN_DEEP; y++) {
-                floatData[i][y] = calcNumbers(kucoinKlines, i, y, 0);
+                floatData[i][y * 3] = kucoinKlines.get(i + y + PREDICT_DEEP).getClose()
+                        .subtract(kucoinKlines.get(i + y + PREDICT_DEEP).getOpen()).floatValue();
+                floatData[i][y * 3 + 1] = kucoinKlines.get(i + y + PREDICT_DEEP).getHigh()
+                        .subtract(kucoinKlines.get(i + y + PREDICT_DEEP).getLow()).floatValue();
+                floatData[i][y * 3 + 2] = kucoinKlines.get(i + y + PREDICT_DEEP).getVolume().floatValue();
             }
 
             int delta = (kucoinKlines.get(i).getClose()
@@ -63,36 +63,40 @@ public class KlinesController {
 
             delta = Math.max(delta, 0);
             delta = Math.min(delta, 7);
-            floatLabels[i][delta] = 1;
+            intLabels[i][delta] = 1;
         }
 
-        INDArray trainingData = Nd4j.create(floatData);
-        INDArray trainingLabels = Nd4j.create(floatLabels);
+        INDArray indData = Nd4j.create(floatData);
+        INDArray indLabels = Nd4j.create(intLabels);
 
-        float[][] floatResult = model.output(trainingData).toFloatMatrix();
+        float[][] floatResult = model.output(indData).toFloatMatrix();
 
         List<String> listResult = new ArrayList<>();
         for (int i = 0; i < TRAIN_CYCLES; i++) {
-            if ((floatResult[i][0] + floatResult[i][1]) > 0.8 ||  floatLabels[i][0] == 1.0) {
-                goodMark++;
-            } else {
-                wrongMark++;
+            if (floatResult[i][0] + floatResult[i][1] + floatResult[i][2] + floatResult[i][3] > 0.5) {
+                if (intLabels[i][0] + intLabels[i][1] + intLabels[i][2] + intLabels[i][3] > 0.5) {
+                    goodMark++;
+                } else {
+                    wrongMark++;
+                }
             }
-            if ((floatResult[i][6] + floatResult[i][7]) > 0.8 ||  floatLabels[i][7] == 1.0) {
-                goodMark++;
-            } else {
-                wrongMark++;
+            if (floatResult[i][4] + floatResult[i][5] + floatResult[i][6] + floatResult[i][7] > 0.5) {
+                if (intLabels[i][4] + intLabels[i][5] + intLabels[i][6] + intLabels[i][7] > 0.5) {
+                    goodMark++;
+                } else {
+                    wrongMark++;
+                }
             }
 
             if ((floatResult[i][0] + floatResult[i][1]) > 0.8 ||  (floatResult[i][6] + floatResult[i][7]) > 0.8) {
-                listResult.add(String.format("%.2f", floatLabels[i][0]) + " " +
-                        String.format("%.2f", floatLabels[i][1]) + " " +
-                        String.format("%.2f", floatLabels[i][2]) + " " +
-                        String.format("%.2f", floatLabels[i][3]) + " | " +
-                        String.format("%.2f", floatLabels[i][4]) + " " +
-                        String.format("%.2f", floatLabels[i][5]) + " " +
-                        String.format("%.2f", floatLabels[i][6]) + " " +
-                        String.format("%.2f", floatLabels[i][7]));
+                listResult.add(intLabels[i][0] + "    " +
+                        intLabels[i][1] + "    " +
+                        intLabels[i][2] + "    " +
+                        intLabels[i][3] + "  |   " +
+                        intLabels[i][4] + "    " +
+                        intLabels[i][5] + "    " +
+                        intLabels[i][6] + "    " +
+                        intLabels[i][7] + "   ");
                 listResult.add(String.format("%.2f", floatResult[i][0]) + " " +
                         String.format("%.2f", floatResult[i][1]) + " " +
                         String.format("%.2f", floatResult[i][2]) + " " +
@@ -105,7 +109,7 @@ public class KlinesController {
             }
         }
 
-        listResult.add(" GoodMark = " + goodMark + ", WrongMark = " + wrongMark);
+        listResult.add(" GoodMark = " + goodMark + ", WrongMark = " + wrongMark + ", K = " + goodMark * 1.0 / TRAIN_CYCLES);
 
         return listResult;
     }

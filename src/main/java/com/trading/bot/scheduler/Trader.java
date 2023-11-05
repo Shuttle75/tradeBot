@@ -3,7 +3,6 @@ package com.trading.bot.scheduler;
 import com.trading.bot.dto.Purchase;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.knowm.xchange.Exchange;
-import org.knowm.xchange.kucoin.KucoinMarketDataService;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.nd4j.linalg.factory.Nd4j;
 import org.slf4j.Logger;
@@ -18,7 +17,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import static com.trading.bot.configuration.BotConfig.*;
-import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min1;
 
 @Service
 public class Trader {
@@ -79,22 +77,25 @@ public class Trader {
     private List<KucoinKline> getKlines() throws IOException {
         final long startDate = LocalDateTime.now(ZoneOffset.UTC)
                 .truncatedTo(ChronoUnit.MINUTES)
-                .minusMinutes(TRAIN_DEEP + 1L)
+                .minusHours(2)
                 .toEpochSecond(ZoneOffset.UTC);
         final long endDate = LocalDateTime.now(ZoneOffset.UTC)
                 .toEpochSecond(ZoneOffset.UTC);
 
-        return ((KucoinMarketDataService) exchange.getMarketDataService())
-                .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min1);
+        return getKucoinKlines(exchange, startDate, endDate);
     }
 
     private float[][] getPredict(List<KucoinKline> kucoinKlines) {
         buyPrice = kucoinKlines.get(0).getClose().floatValue();
 
-        float[][] floatData = new float[1][TRAIN_DEEP];
+        float[][] floatData = new float[1][TRAIN_DEEP * 3];
         int i = 0;
         for (int y = 0; y < TRAIN_DEEP; y++) {
-            floatData[i][y] = calcNumbers(kucoinKlines, i, y, 0);
+            floatData[i][y * 3] = kucoinKlines.get(i + y).getClose()
+                    .subtract(kucoinKlines.get(i + y).getOpen()).floatValue();
+            floatData[i][y * 3 + 1] = kucoinKlines.get(i + y).getHigh()
+                    .subtract(kucoinKlines.get(i + y).getLow()).floatValue();
+            floatData[i][y * 3 + 2] = kucoinKlines.get(i + y).getVolume().floatValue();
         }
 
         return model.output(Nd4j.create(floatData)).toFloatMatrix();
