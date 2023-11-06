@@ -88,14 +88,12 @@ public class Trader {
     private float[][] getPredict(List<KucoinKline> kucoinKlines) {
         buyPrice = kucoinKlines.get(0).getClose().floatValue();
 
-        float[][] floatData = new float[1][TRAIN_DEEP * 3];
+        float[][] floatData = new float[1][TRAIN_DEEP];
         int i = 0;
         for (int y = 0; y < TRAIN_DEEP; y++) {
-            floatData[i][y * 3] = kucoinKlines.get(i + y).getClose()
-                    .subtract(kucoinKlines.get(i + y).getOpen()).floatValue();
-            floatData[i][y * 3 + 1] = kucoinKlines.get(i + y).getHigh()
-                    .subtract(kucoinKlines.get(i + y).getLow()).floatValue();
-            floatData[i][y * 3 + 2] = kucoinKlines.get(i + y).getVolume().floatValue();
+            floatData[i][y] = kucoinKlines.get(i + y).getClose()
+                    .subtract(kucoinKlines.get(i + y).getOpen())
+                    .multiply(kucoinKlines.get(i + y).getVolume()).floatValue();
         }
 
         return model.output(Nd4j.create(floatData)).toFloatMatrix();

@@ -27,6 +27,7 @@ public class KlinesController {
     private final MultiLayerNetwork model;
 
     private int goodMark, wrongMark;
+    private int goodSign, wrongSign;
 
     public KlinesController(Exchange exchange, MultiLayerNetwork model) {
         this.exchange = exchange;
@@ -36,34 +37,26 @@ public class KlinesController {
     @GetMapping(path = "predict")
     public List<String> getPredict() throws IOException {
         final long startDate = LocalDateTime.now(ZoneOffset.UTC)
-                .truncatedTo(ChronoUnit.MINUTES)
-                .minusDays(3)
+                .truncatedTo(ChronoUnit.DAYS)
+                .minusDays(MINUS_DAYS + 2)
                 .toEpochSecond(ZoneOffset.UTC);
         final long endDate = LocalDateTime.now(ZoneOffset.UTC)
-                .truncatedTo(ChronoUnit.MINUTES)
-                .minusDays(1)
+                .truncatedTo(ChronoUnit.DAYS)
+                .minusDays(MINUS_DAYS + 1)
                 .toEpochSecond(ZoneOffset.UTC);
 
         final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
 
-        float[][] floatData = new float[TRAIN_CYCLES][TRAIN_DEEP * 3];
+        float[][] floatData = new float[TRAIN_CYCLES][TRAIN_DEEP];
         int[][] intLabels = new int[TRAIN_CYCLES][OUTPUT_SIZE];
         for (int i = 0; i < TRAIN_CYCLES; i++) {
             for (int y = 0; y < TRAIN_DEEP; y++) {
-                floatData[i][y * 3] = kucoinKlines.get(i + y + PREDICT_DEEP).getClose()
-                        .subtract(kucoinKlines.get(i + y + PREDICT_DEEP).getOpen()).floatValue();
-                floatData[i][y * 3 + 1] = kucoinKlines.get(i + y + PREDICT_DEEP).getHigh()
-                        .subtract(kucoinKlines.get(i + y + PREDICT_DEEP).getLow()).floatValue();
-                floatData[i][y * 3 + 2] = kucoinKlines.get(i + y + PREDICT_DEEP).getVolume().floatValue();
+                floatData[i][y] = kucoinKlines.get(i + y + PREDICT_DEEP).getClose()
+                        .subtract(kucoinKlines.get(i + y + PREDICT_DEEP).getOpen())
+                        .multiply(kucoinKlines.get(i + y + PREDICT_DEEP).getVolume()).floatValue();
             }
 
-            int delta = (kucoinKlines.get(i).getClose()
-                    .subtract(kucoinKlines.get(i + PREDICT_DEEP).getClose())
-                    .intValue() + OUTPUT_SIZE * CURRENCY_DELTA / 2) / CURRENCY_DELTA;
-
-            delta = Math.max(delta, 0);
-            delta = Math.min(delta, 7);
-            intLabels[i][delta] = 1;
+            intLabels[i][getDelta(kucoinKlines, i)] = 1;
         }
 
         INDArray indData = Nd4j.create(floatData);
@@ -75,13 +68,28 @@ public class KlinesController {
         for (int i = 0; i < TRAIN_CYCLES; i++) {
             if (floatResult[i][0] + floatResult[i][1] + floatResult[i][2] + floatResult[i][3] > 0.5) {
                 if (intLabels[i][0] + intLabels[i][1] + intLabels[i][2] + intLabels[i][3] > 0.5) {
+                    goodSign++;
+                } else {
+                    wrongSign++;
+                }
+            }
+            if (floatResult[i][4] + floatResult[i][5] + floatResult[i][6] + floatResult[i][7] > 0.5) {
+                if (intLabels[i][4] + intLabels[i][5] + intLabels[i][6] + intLabels[i][7] > 0.5) {
+                    goodSign++;
+                } else {
+                    wrongSign++;
+                }
+            }
+
+            if (floatResult[i][0] + floatResult[i][1] > 0.7) {
+                if (intLabels[i][0] + intLabels[i][1] > 0.7) {
                     goodMark++;
                 } else {
                     wrongMark++;
                 }
             }
-            if (floatResult[i][4] + floatResult[i][5] + floatResult[i][6] + floatResult[i][7] > 0.5) {
-                if (intLabels[i][4] + intLabels[i][5] + intLabels[i][6] + intLabels[i][7] > 0.5) {
+            if (floatResult[i][6] + floatResult[i][7] > 0.7) {
+                if (intLabels[i][6] + intLabels[i][7] > 0.7) {
                     goodMark++;
                 } else {
                     wrongMark++;
@@ -109,6 +117,7 @@ public class KlinesController {
             }
         }
 
+        listResult.add(" GoodSign = " + goodSign + ", WrongSign = " + wrongSign + ", K = " + goodSign * 1.0 / TRAIN_CYCLES);
         listResult.add(" GoodMark = " + goodMark + ", WrongMark = " + wrongMark + ", K = " + goodMark * 1.0 / TRAIN_CYCLES);
 
         return listResult;

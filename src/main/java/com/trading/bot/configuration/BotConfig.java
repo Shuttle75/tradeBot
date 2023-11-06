@@ -29,19 +29,21 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min1;
 
 @Configuration
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
-
-    public static final int TRAIN_CYCLES = 1440;
+    public static final long MINUS_DAYS = 1;
+    public static final int TRAIN_CYCLES = 1200;
     public static final int OUTPUT_SIZE = 8;
-    public static final int TRAIN_DEEP = 24;
-    public static final int PREDICT_DEEP = 1;
-    public static final int CURRENCY_DELTA = 5;
+    public static final int TRAIN_DEEP = 12;
+    public static final int PREDICT_DEEP = 2;
+    public static final int CURRENCY_DELTA = 10;
 
     public static final CurrencyPair CURRENCY_PAIR = new CurrencyPair("BTC", "USDT");
 
@@ -65,10 +67,10 @@ public class BotConfig {
                 .seed(6)
                 .activation(Activation.TANH)
                 .weightInit(WeightInit.XAVIER)
-                .updater(new Sgd(0.1))
+                .updater(new Sgd(1))
                 .l2(1e-4)
                 .list()
-                .layer(new DenseLayer.Builder().nIn(TRAIN_DEEP * 3).nOut(4096)
+                .layer(new DenseLayer.Builder().nIn(TRAIN_DEEP).nOut(4096)
                         .build())
                 .layer(new DenseLayer.Builder().nIn(4096).nOut(512)
                         .build())
@@ -83,33 +85,26 @@ public class BotConfig {
     @Bean
     public MultiLayerNetwork getModel(Exchange exchange, MultiLayerConfiguration config) throws IOException {
         final long startDate = LocalDateTime.now(ZoneOffset.UTC)
-                .truncatedTo(ChronoUnit.MINUTES)
-                .minusDays(2)
+                .truncatedTo(ChronoUnit.DAYS)
+                .minusDays(MINUS_DAYS + 1)
                 .toEpochSecond(ZoneOffset.UTC);
         final long endDate = LocalDateTime.now(ZoneOffset.UTC)
-                .truncatedTo(ChronoUnit.MINUTES)
+                .truncatedTo(ChronoUnit.DAYS)
+                .minusDays(MINUS_DAYS)
                 .toEpochSecond(ZoneOffset.UTC);
 
         final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
 
-        float[][] floatData = new float[TRAIN_CYCLES][TRAIN_DEEP * 3];
+        float[][] floatData = new float[TRAIN_CYCLES][TRAIN_DEEP];
         int[][] intLabels = new int[TRAIN_CYCLES][OUTPUT_SIZE];
         for (int i = 0; i < TRAIN_CYCLES; i++) {
             for (int y = 0; y < TRAIN_DEEP; y++) {
-                floatData[i][y * 3] = kucoinKlines.get(i + y + PREDICT_DEEP).getClose()
-                        .subtract(kucoinKlines.get(i + y + PREDICT_DEEP).getOpen()).floatValue();
-                floatData[i][y * 3 + 1] = kucoinKlines.get(i + y + PREDICT_DEEP).getHigh()
-                        .subtract(kucoinKlines.get(i + y + PREDICT_DEEP).getLow()).floatValue();
-                floatData[i][y * 3 + 2] = kucoinKlines.get(i + y + PREDICT_DEEP).getVolume().floatValue();
+                floatData[i][y] = kucoinKlines.get(i + y + PREDICT_DEEP).getClose()
+                        .subtract(kucoinKlines.get(i + y + PREDICT_DEEP).getOpen())
+                        .multiply(kucoinKlines.get(i + y + PREDICT_DEEP).getVolume()).floatValue();
             }
 
-            int delta = (kucoinKlines.get(i).getClose()
-                    .subtract(kucoinKlines.get(i + PREDICT_DEEP).getClose())
-                    .intValue() + OUTPUT_SIZE * CURRENCY_DELTA / 2) / CURRENCY_DELTA;
-
-            delta = Math.max(delta, 0);
-            delta = Math.min(delta, 7);
-            intLabels[i][delta] = 1;
+            intLabels[i][getDelta(kucoinKlines, i)] = 1;
         }
 
         INDArray indData = Nd4j.create(floatData);
@@ -129,11 +124,87 @@ public class BotConfig {
         return model;
     }
 
+    public static int getDelta(List<KucoinKline> kucoinKlines, int i) {
+        BigDecimal data0 = kucoinKlines.get(i).getClose().subtract(kucoinKlines.get(i).getOpen());
+        BigDecimal data1 = kucoinKlines.get(i + 1).getClose().subtract(kucoinKlines.get(i + 1).getOpen());
+        BigDecimal data2 = kucoinKlines.get(i + 2).getOpen().subtract(kucoinKlines.get(i + 2).getClose());
+        BigDecimal data3 = kucoinKlines.get(i + 3).getOpen().subtract(kucoinKlines.get(i + 3).getClose());
+        int delta = (data0.add(data1).add(data2).add(data3).intValue() + OUTPUT_SIZE * CURRENCY_DELTA / 2) / CURRENCY_DELTA;
+
+        delta = Math.max(delta, 0);
+        delta = Math.min(delta, 7);
+        return delta;
+    }
+
     public static List<KucoinKline> getKucoinKlines(Exchange exchange, long startDate, long endDate) throws IOException {
-        return ((KucoinMarketDataService) exchange.getMarketDataService())
-                .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min1)
-                .stream()
- //               .filter(kucoinKline -> kucoinKline.getVolume().floatValue() > 0.5)
-                .toList();
+        List<KucoinKline> kucoinKlines = ((KucoinMarketDataService) exchange.getMarketDataService())
+                .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min1);
+
+ //       reduceKucoinKlines(kucoinKlines);
+
+        return kucoinKlines;
+    }
+
+    private static void reduceKucoinKlines(List<KucoinKline> kucoinKlines) {
+        kucoinKlines.stream()
+                .sorted(Comparator.comparing(KucoinKline::getVolume))
+                .limit(400)
+                .forEach(lowValueKline -> {
+                    AtomicInteger index = new AtomicInteger();
+                    kucoinKlines.stream()
+                            .filter(kucoinKline -> kucoinKline.getTime().equals(lowValueKline.getTime()))
+                            .findAny()
+                            .ifPresent(kucoinKline -> index.set(kucoinKlines.indexOf(kucoinKline)));
+
+                    kucoinKlines.indexOf(lowValueKline);
+                    KucoinKline kucoinKlineBefore = index.get() > 0 ? kucoinKlines.get(index.get() - 1) : null;
+                    KucoinKline kucoinKlineAfter = index.get() < kucoinKlines.size() - 1 ? kucoinKlines.get(index.get() + 1) : null;;
+
+                    if (index.get() >= 1
+                            && kucoinKlineBefore.getVolume().compareTo(kucoinKlineAfter.getVolume()) < 0) {
+                        kucoinKlines.set(index.get() + 1, createBeforeKucoinKline(lowValueKline, kucoinKlines.get(index.get() + 1)));
+                        kucoinKlines.remove(index.get());
+                    } else {
+                        kucoinKlines.set(index.get() + 1, createAfterKucoinKline(lowValueKline, kucoinKlines.get(index.get() + 1)));
+                        kucoinKlines.remove(index.get());
+                    }
+                });
+    }
+    private static KucoinKline createBeforeKucoinKline(KucoinKline lowValueKline, KucoinKline kucoinKlineBefore) {
+        return new KucoinKline(
+                lowValueKline.getPair(),
+                lowValueKline.getIntervalType(),
+                new Object[]{
+                        kucoinKlineBefore.getTime(),
+                        kucoinKlineBefore.getOpen().floatValue(),
+                        lowValueKline.getClose().floatValue(),
+                        kucoinKlineBefore.getHigh().compareTo(lowValueKline.getHigh()) > 0 ?
+                                kucoinKlineBefore.getHigh().floatValue() :
+                                lowValueKline.getHigh().floatValue(),
+                        kucoinKlineBefore.getLow().compareTo(lowValueKline.getHigh()) < 0 ?
+                                kucoinKlineBefore.getLow().floatValue() :
+                                lowValueKline.getLow().floatValue(),
+                        kucoinKlineBefore.getVolume().floatValue() + lowValueKline.getVolume().floatValue(),
+                        kucoinKlineBefore.getAmount().floatValue() + lowValueKline.getAmount().floatValue()}
+        );
+    }
+
+    private static KucoinKline createAfterKucoinKline(KucoinKline lowValueKline, KucoinKline kucoinKlineAfter) {
+        return new KucoinKline(
+                lowValueKline.getPair(),
+                lowValueKline.getIntervalType(),
+                new Object[]{
+                        kucoinKlineAfter.getTime(),
+                        lowValueKline.getOpen().floatValue(),
+                        kucoinKlineAfter.getClose().floatValue(),
+                        kucoinKlineAfter.getHigh().compareTo(lowValueKline.getHigh()) > 0 ?
+                                kucoinKlineAfter.getHigh().floatValue() :
+                                lowValueKline.getHigh().floatValue(),
+                        kucoinKlineAfter.getLow().compareTo(lowValueKline.getHigh()) < 0 ?
+                                kucoinKlineAfter.getLow().floatValue() :
+                                lowValueKline.getLow().floatValue(),
+                        kucoinKlineAfter.getVolume().floatValue() + lowValueKline.getVolume().floatValue(),
+                        kucoinKlineAfter.getAmount().floatValue() + lowValueKline.getAmount().floatValue()}
+        );
     }
 }
