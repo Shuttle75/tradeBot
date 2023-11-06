@@ -43,7 +43,7 @@ public class BotConfig {
     public static final int OUTPUT_SIZE = 8;
     public static final int TRAIN_DEEP = 12;
     public static final int PREDICT_DEEP = 2;
-    public static final int CURRENCY_DELTA = 10;
+    public static final int CURRENCY_DELTA = 20;
 
     public static final CurrencyPair CURRENCY_PAIR = new CurrencyPair("BTC", "USDT");
 
@@ -67,7 +67,7 @@ public class BotConfig {
                 .seed(6)
                 .activation(Activation.TANH)
                 .weightInit(WeightInit.XAVIER)
-                .updater(new Sgd(1))
+                .updater(new Sgd(0.05))
                 .l2(1e-4)
                 .list()
                 .layer(new DenseLayer.Builder().nIn(TRAIN_DEEP).nOut(4096)
@@ -99,9 +99,7 @@ public class BotConfig {
         int[][] intLabels = new int[TRAIN_CYCLES][OUTPUT_SIZE];
         for (int i = 0; i < TRAIN_CYCLES; i++) {
             for (int y = 0; y < TRAIN_DEEP; y++) {
-                floatData[i][y] = kucoinKlines.get(i + y + PREDICT_DEEP).getClose()
-                        .subtract(kucoinKlines.get(i + y + PREDICT_DEEP).getOpen())
-                        .multiply(kucoinKlines.get(i + y + PREDICT_DEEP).getVolume()).floatValue();
+                floatData[i][y] = calcData(kucoinKlines, i, y, PREDICT_DEEP);
             }
 
             intLabels[i][getDelta(kucoinKlines, i)] = 1;
@@ -118,17 +116,24 @@ public class BotConfig {
 
 
 
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 2000; i++) {
             model.fit(indData, indLabels);
         }
         return model;
     }
 
+    public static float calcData(List<KucoinKline> kucoinKlines, int i, int y, int predict) {
+        return kucoinKlines.get(i + y + predict).getClose()
+                .subtract(kucoinKlines.get(i + y + predict).getOpen())
+                .multiply(kucoinKlines.get(i + y + predict).getVolume())
+                .floatValue() * TRAIN_DEEP / (TRAIN_DEEP + y * 2);
+    }
+
     public static int getDelta(List<KucoinKline> kucoinKlines, int i) {
-        BigDecimal data0 = kucoinKlines.get(i).getClose().subtract(kucoinKlines.get(i).getOpen());
-        BigDecimal data1 = kucoinKlines.get(i + 1).getClose().subtract(kucoinKlines.get(i + 1).getOpen());
-        BigDecimal data2 = kucoinKlines.get(i + 2).getOpen().subtract(kucoinKlines.get(i + 2).getClose());
-        BigDecimal data3 = kucoinKlines.get(i + 3).getOpen().subtract(kucoinKlines.get(i + 3).getClose());
+        BigDecimal data0 = kucoinKlines.get(i).getHigh().subtract(kucoinKlines.get(i).getOpen());
+        BigDecimal data1 = kucoinKlines.get(i + 1).getHigh().subtract(kucoinKlines.get(i + 1).getOpen());
+        BigDecimal data2 = kucoinKlines.get(i + 2).getHigh().subtract(kucoinKlines.get(i + 2).getClose());
+        BigDecimal data3 = kucoinKlines.get(i + 3).getHigh().subtract(kucoinKlines.get(i + 3).getClose());
         int delta = (data0.add(data1).add(data2).add(data3).intValue() + OUTPUT_SIZE * CURRENCY_DELTA / 2) / CURRENCY_DELTA;
 
         delta = Math.max(delta, 0);

@@ -26,8 +26,7 @@ public class KlinesController {
     private final Exchange exchange;
     private final MultiLayerNetwork model;
 
-    private int goodMark, wrongMark;
-    private int goodSign, wrongSign;
+
 
     public KlinesController(Exchange exchange, MultiLayerNetwork model) {
         this.exchange = exchange;
@@ -36,6 +35,8 @@ public class KlinesController {
 
     @GetMapping(path = "predict")
     public List<String> getPredict() throws IOException {
+        int goodMark = 0, wrongMark = 0;
+        int goodSign = 0, wrongSign = 0;
         final long startDate = LocalDateTime.now(ZoneOffset.UTC)
                 .truncatedTo(ChronoUnit.DAYS)
                 .minusDays(MINUS_DAYS + 2)
@@ -51,9 +52,7 @@ public class KlinesController {
         int[][] intLabels = new int[TRAIN_CYCLES][OUTPUT_SIZE];
         for (int i = 0; i < TRAIN_CYCLES; i++) {
             for (int y = 0; y < TRAIN_DEEP; y++) {
-                floatData[i][y] = kucoinKlines.get(i + y + PREDICT_DEEP).getClose()
-                        .subtract(kucoinKlines.get(i + y + PREDICT_DEEP).getOpen())
-                        .multiply(kucoinKlines.get(i + y + PREDICT_DEEP).getVolume()).floatValue();
+                floatData[i][y] = calcData(kucoinKlines, i, y, PREDICT_DEEP);
             }
 
             intLabels[i][getDelta(kucoinKlines, i)] = 1;
@@ -81,22 +80,22 @@ public class KlinesController {
                 }
             }
 
-            if (floatResult[i][0] + floatResult[i][1] > 0.7) {
-                if (intLabels[i][0] + intLabels[i][1] > 0.7) {
+            if (floatResult[i][0] + floatResult[i][1] > 0.8) {
+                if (intLabels[i][0] + intLabels[i][1] > 0.8) {
                     goodMark++;
                 } else {
                     wrongMark++;
                 }
             }
-            if (floatResult[i][6] + floatResult[i][7] > 0.7) {
-                if (intLabels[i][6] + intLabels[i][7] > 0.7) {
+            if (floatResult[i][6] + floatResult[i][7] > 0.8) {
+                if (intLabels[i][6] + intLabels[i][7] > 0.8) {
                     goodMark++;
                 } else {
                     wrongMark++;
                 }
             }
 
-            if ((floatResult[i][0] + floatResult[i][1]) > 0.8 ||  (floatResult[i][6] + floatResult[i][7]) > 0.8) {
+            if (floatResult[i][0] > 0.8 || floatResult[i][7] > 0.8) {
                 listResult.add(intLabels[i][0] + "    " +
                         intLabels[i][1] + "    " +
                         intLabels[i][2] + "    " +

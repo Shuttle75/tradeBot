@@ -17,6 +17,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import static com.trading.bot.configuration.BotConfig.*;
+import static com.trading.bot.util.TradeUtil.printRates;
 
 @Service
 public class Trader {
@@ -44,8 +45,7 @@ public class Trader {
         float[][] floatResult = getPredict(kucoinKlines);
 
         if (purchase.isActive()) {
-            if ((floatResult[0][0] + floatResult[0][1] + floatResult[0][2]) > 0.8 ||
-                    this.purchase.getCurPrice() - kucoinKlines.get(0).getClose().floatValue() > 5.0) {
+            if ((floatResult[0][0] + floatResult[0][1] + floatResult[0][2]) > 0.8) {
                 this.purchase.setActive(false);
                 USDT = USDT / this.purchase.getCurPrice() * kucoinKlines.get(0).getClose().floatValue();
                 logger.info(printRates(floatResult) + " Sell crypto !!!!!!!! {} ", USDT);
@@ -53,7 +53,7 @@ public class Trader {
                 logger.info(printRates(floatResult) + " HOLD the crypto");
             }
         } else {
-            if ((floatResult[0][6] + floatResult[0][7]) > 0.8) {
+            if ((floatResult[0][7]) > 0.8) {
                 this.purchase.setActive(true);
                 this.purchase.setCurPrice(buyPrice);
                 logger.info(printRates(floatResult) + " Buy crypto !!!!!!!! Price {}", buyPrice);
@@ -61,17 +61,6 @@ public class Trader {
                 logger.info(printRates(floatResult) + " NOT Buy crypto");
             }
         }
-    }
-
-    private static String printRates(float[][] floatResult) {
-        return String.format("%.2f", floatResult[0][0]) + " " +
-                String.format("%.2f", floatResult[0][1]) + " " +
-                String.format("%.2f", floatResult[0][2]) + " " +
-                String.format("%.2f", floatResult[0][3]) + " | " +
-                String.format("%.2f", floatResult[0][4]) + " " +
-                String.format("%.2f", floatResult[0][5]) + " " +
-                String.format("%.2f", floatResult[0][6]) + " " +
-                String.format("%.2f", floatResult[0][7]);
     }
 
     private List<KucoinKline> getKlines() throws IOException {
@@ -91,9 +80,7 @@ public class Trader {
         float[][] floatData = new float[1][TRAIN_DEEP];
         int i = 0;
         for (int y = 0; y < TRAIN_DEEP; y++) {
-            floatData[i][y] = kucoinKlines.get(i + y).getClose()
-                    .subtract(kucoinKlines.get(i + y).getOpen())
-                    .multiply(kucoinKlines.get(i + y).getVolume()).floatValue();
+            floatData[i][y] = calcData(kucoinKlines, i, y, 0);
         }
 
         return model.output(Nd4j.create(floatData)).toFloatMatrix();
