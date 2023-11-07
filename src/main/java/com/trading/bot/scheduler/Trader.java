@@ -17,7 +17,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import static com.trading.bot.configuration.BotConfig.*;
-import static com.trading.bot.util.TradeUtil.printRates;
+import static com.trading.bot.util.TradeUtil.*;
 
 @Service
 public class Trader {
@@ -43,22 +43,28 @@ public class Trader {
     public void trade() throws IOException {
         List<KucoinKline> kucoinKlines = getKlines();
         float[][] floatResult = getPredict(kucoinKlines);
+        String rates = printRates(floatResult);
+        float newPrice = kucoinKlines.get(0).getClose().floatValue();
 
         if (purchase.isActive()) {
-            if ((floatResult[0][0] + floatResult[0][1] + floatResult[0][2]) > 0.8) {
+            if (this.purchase.getMaxPrice() - newPrice > CURRENCY_DELTA * 2) {
                 this.purchase.setActive(false);
-                USDT = USDT / this.purchase.getCurPrice() * kucoinKlines.get(0).getClose().floatValue();
-                logger.info(printRates(floatResult) + " Sell crypto !!!!!!!! {} ", USDT);
+                USDT = USDT / this.purchase.getCurPrice() * newPrice;
+                logger.info("{} Sell crypto !!!!!!!! {} ", rates, USDT);
             } else {
-                logger.info(printRates(floatResult) + " HOLD the crypto");
+                this.purchase.setCurPrice(buyPrice);
+                this.purchase.setMaxPrice(buyPrice);
+                logger.info("{}  HOLD the crypto", rates);
             }
         } else {
             if ((floatResult[0][7]) > 0.8) {
                 this.purchase.setActive(true);
                 this.purchase.setCurPrice(buyPrice);
-                logger.info(printRates(floatResult) + " Buy crypto !!!!!!!! Price {}", buyPrice);
+                this.purchase.setMinPrice(buyPrice);
+                this.purchase.setMaxPrice(buyPrice);
+                logger.info("{}  Buy crypto !!!!!!!! Price {}", rates, buyPrice);
             } else {
-                logger.info(printRates(floatResult) + " NOT Buy crypto");
+                logger.info("{}  NOT Buy crypto", rates);
             }
         }
     }

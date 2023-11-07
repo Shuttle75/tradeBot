@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.trading.bot.configuration.BotConfig.*;
+import static com.trading.bot.util.TradeUtil.*;
 
 @RestController
 public class KlinesController {
@@ -25,8 +26,6 @@ public class KlinesController {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     private final Exchange exchange;
     private final MultiLayerNetwork model;
-
-
 
     public KlinesController(Exchange exchange, MultiLayerNetwork model) {
         this.exchange = exchange;
@@ -59,7 +58,6 @@ public class KlinesController {
         }
 
         INDArray indData = Nd4j.create(floatData);
-        INDArray indLabels = Nd4j.create(intLabels);
 
         float[][] floatResult = model.output(indData).toFloatMatrix();
 
@@ -116,8 +114,8 @@ public class KlinesController {
             }
         }
 
-        listResult.add(" GoodSign = " + goodSign + ", WrongSign = " + wrongSign + ", K = " + goodSign * 1.0 / TRAIN_CYCLES);
-        listResult.add(" GoodMark = " + goodMark + ", WrongMark = " + wrongMark + ", K = " + goodMark * 1.0 / TRAIN_CYCLES);
+        listResult.add(" GoodSign = " + goodSign + ", WrongSign = " + wrongSign);
+        listResult.add(" GoodMark = " + goodMark + ", WrongMark = " + wrongMark + ", K = " + 100.0 / (goodMark + wrongMark) * goodMark);
 
         return listResult;
     }

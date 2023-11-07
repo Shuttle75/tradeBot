@@ -13,6 +13,12 @@ public class Purchase {
     private float minPrice;
     @Getter @Setter
     private float curPrice;
-    @Getter @Setter
+    @Getter
     private float maxPrice;
+
+    public void setMaxPrice(float maxPrice) {
+        if (maxPrice > this.maxPrice) {
+            this.maxPrice = maxPrice;
+        }
+    }
 }
