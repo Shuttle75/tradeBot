@@ -35,12 +35,11 @@ import static com.trading.bot.util.TradeUtil.*;
 @Configuration
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
-    public static final long MINUS_DAYS = 1;
-    public static final int TRAIN_CYCLES = 500;
+    public static final long MINUS_DAYS = 2;
     public static final int OUTPUT_SIZE = 8;
-    public static final int TRAIN_DEEP = 12;
-    public static final int PREDICT_DEEP = 2;
-    public static final int CURRENCY_DELTA = 10;
+    public static final int TRAIN_DEEP = 16;
+    public static final int PREDICT_DEEP = 1;
+    public static final int CURRENCY_DELTA = 20;
 
     public static final CurrencyPair CURRENCY_PAIR = new CurrencyPair("BTC", "USDT");
 
@@ -81,6 +80,7 @@ public class BotConfig {
 
     @Bean
     public MultiLayerNetwork getModel(Exchange exchange, MultiLayerConfiguration config) throws IOException {
+
         final long startDate = LocalDateTime.now(ZoneOffset.UTC)
                 .truncatedTo(ChronoUnit.DAYS)
                 .minusDays(MINUS_DAYS + 1)
@@ -91,10 +91,12 @@ public class BotConfig {
                 .toEpochSecond(ZoneOffset.UTC);
 
         final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
+        kucoinKlines.addAll(getKucoinKlines(exchange, startDate - 86400, endDate - 86400));
+        kucoinKlines.addAll(getKucoinKlines(exchange, startDate - 2 * 86400, endDate - 2 * 86400));
 
-        float[][] floatData = new float[TRAIN_CYCLES][TRAIN_DEEP];
-        int[][] intLabels = new int[TRAIN_CYCLES][OUTPUT_SIZE];
-        for (int i = 0; i < TRAIN_CYCLES; i++) {
+        float[][] floatData = new float[kucoinKlines.size() - TRAIN_DEEP][TRAIN_DEEP];
+        int[][] intLabels = new int[kucoinKlines.size() - TRAIN_DEEP][OUTPUT_SIZE];
+        for (int i = 0; i < kucoinKlines.size() - TRAIN_DEEP; i++) {
             for (int y = 0; y < TRAIN_DEEP; y++) {
                 floatData[i][y] = calcData(kucoinKlines, i, y, PREDICT_DEEP);
             }
@@ -116,7 +118,4 @@ public class BotConfig {
         }
         return model;
     }
-
-
-
 }

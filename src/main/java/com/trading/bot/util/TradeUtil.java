@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static com.trading.bot.configuration.BotConfig.*;
+import static java.lang.Math.round;
 import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min1;
 
 public class TradeUtil {
@@ -27,15 +28,31 @@ public class TradeUtil {
         return kucoinKlines.get(i + y + predict).getClose()
                 .subtract(kucoinKlines.get(i + y + predict).getOpen())
                 .multiply(kucoinKlines.get(i + y + predict).getVolume())
-                .floatValue() * TRAIN_DEEP / (TRAIN_DEEP + y * 2);
+                .floatValue();
     }
 
     public static int getDelta(List<KucoinKline> kucoinKlines, int i) {
-        BigDecimal data0 = kucoinKlines.get(i).getClose().subtract(kucoinKlines.get(i).getOpen());
-        BigDecimal data1 = kucoinKlines.get(i + 1).getClose().subtract(kucoinKlines.get(i + 1).getOpen());
-        BigDecimal data2 = kucoinKlines.get(i + 2).getOpen().subtract(kucoinKlines.get(i + 2).getClose());
-        BigDecimal data3 = kucoinKlines.get(i + 3).getOpen().subtract(kucoinKlines.get(i + 3).getClose());
-        int delta = (data0.add(data1).add(data2).add(data3).intValue() + OUTPUT_SIZE * CURRENCY_DELTA / 2) / CURRENCY_DELTA;
+        float data0 = kucoinKlines.get(i).getClose()
+                .subtract(kucoinKlines.get(i).getOpen())
+                .multiply(kucoinKlines.get(i).getVolume())
+                .floatValue();
+
+        float data1 = kucoinKlines.get(i + 1).getClose()
+                .subtract(kucoinKlines.get(i + 1).getOpen())
+                .multiply(kucoinKlines.get(i + 1).getVolume())
+                .floatValue();
+
+        float data2 = kucoinKlines.get(i + 2).getOpen()
+                .subtract(kucoinKlines.get(i + 2).getClose())
+                .multiply(kucoinKlines.get(i + 2).getVolume())
+                .floatValue();
+
+        float data3 = kucoinKlines.get(i + 3).getOpen()
+                .subtract(kucoinKlines.get(i + 3).getClose())
+                .multiply(kucoinKlines.get(i + 3).getVolume())
+                .floatValue();
+
+        int delta = round((data0 + data1 + data2 + data3 + (float) (OUTPUT_SIZE * CURRENCY_DELTA) / 2) / CURRENCY_DELTA);
 
         delta = Math.max(delta, 0);
         delta = Math.min(delta, 7);

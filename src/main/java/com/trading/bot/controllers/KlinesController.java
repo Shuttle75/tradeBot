@@ -38,18 +38,17 @@ public class KlinesController {
         int goodSign = 0, wrongSign = 0;
         final long startDate = LocalDateTime.now(ZoneOffset.UTC)
                 .truncatedTo(ChronoUnit.DAYS)
-                .minusDays(MINUS_DAYS + 2)
+                .minusDays(1)
                 .toEpochSecond(ZoneOffset.UTC);
         final long endDate = LocalDateTime.now(ZoneOffset.UTC)
                 .truncatedTo(ChronoUnit.DAYS)
-                .minusDays(MINUS_DAYS + 1)
                 .toEpochSecond(ZoneOffset.UTC);
 
         final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
 
-        float[][] floatData = new float[TRAIN_CYCLES][TRAIN_DEEP];
-        int[][] intLabels = new int[TRAIN_CYCLES][OUTPUT_SIZE];
-        for (int i = 0; i < TRAIN_CYCLES; i++) {
+        float[][] floatData = new float[kucoinKlines.size() - TRAIN_DEEP][TRAIN_DEEP];
+        int[][] intLabels = new int[kucoinKlines.size() - TRAIN_DEEP][OUTPUT_SIZE];
+        for (int i = 0; i < kucoinKlines.size() - TRAIN_DEEP; i++) {
             for (int y = 0; y < TRAIN_DEEP; y++) {
                 floatData[i][y] = calcData(kucoinKlines, i, y, PREDICT_DEEP);
             }
@@ -62,7 +61,7 @@ public class KlinesController {
         float[][] floatResult = model.output(indData).toFloatMatrix();
 
         List<String> listResult = new ArrayList<>();
-        for (int i = 0; i < TRAIN_CYCLES; i++) {
+        for (int i = 0; i < kucoinKlines.size() - TRAIN_DEEP; i++) {
             if (floatResult[i][0] + floatResult[i][1] + floatResult[i][2] + floatResult[i][3] > 0.5) {
                 if (intLabels[i][0] + intLabels[i][1] + intLabels[i][2] + intLabels[i][3] > 0.5) {
                     goodSign++;
@@ -114,8 +113,8 @@ public class KlinesController {
             }
         }
 
-        listResult.add(" GoodSign = " + goodSign + ", WrongSign = " + wrongSign);
-        listResult.add(" GoodMark = " + goodMark + ", WrongMark = " + wrongMark + ", K = " + 100.0 / (goodMark + wrongMark) * goodMark);
+        listResult.add(" GoodSign = " + goodSign + ", WrongSign = " + wrongSign + ", K = " + goodSign / (float)(goodSign + wrongSign));
+        listResult.add(" GoodMark = " + goodMark + ", WrongMark = " + wrongMark + ", K = " + goodMark / (float)(goodMark + wrongMark));
 
         return listResult;
     }

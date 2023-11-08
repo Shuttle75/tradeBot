@@ -25,7 +25,7 @@ public class KucoinKlineCollector implements Collector<KucoinKline, List<KucoinK
             }
 
             KucoinKline prevKucoinKline = kucoinKlines.get(kucoinKlines.size() - 1);
-            if (newKucoinKline.getVolume().floatValue() < 0.2) {
+            if (newKucoinKline.getVolume().floatValue() < 0.3) {
                 kucoinKlines.set(
                         kucoinKlines.size() - 1,
                         new KucoinKline(
