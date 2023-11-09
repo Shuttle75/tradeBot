@@ -39,7 +39,7 @@ public class BotConfig {
     public static final int OUTPUT_SIZE = 8;
     public static final int TRAIN_DEEP = 16;
     public static final int PREDICT_DEEP = 1;
-    public static final int CURRENCY_DELTA = 20;
+    public static final int CURRENCY_DELTA = 10;
 
     public static final CurrencyPair CURRENCY_PAIR = new CurrencyPair("BTC", "USDT");
 

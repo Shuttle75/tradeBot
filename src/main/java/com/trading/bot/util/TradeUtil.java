@@ -4,12 +4,17 @@ import org.knowm.xchange.Exchange;
 import org.knowm.xchange.kucoin.KucoinMarketDataService;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 
+import javax.ws.rs.NotSupportedException;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.List;
+import java.util.*;
+import java.util.function.BiConsumer;
+import java.util.function.BinaryOperator;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collector;
 
 import static com.trading.bot.configuration.BotConfig.*;
-import static java.lang.Math.round;
 import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min1;
 
 public class TradeUtil {
@@ -21,7 +26,7 @@ public class TradeUtil {
         return ((KucoinMarketDataService) exchange.getMarketDataService())
                 .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min1)
                 .stream()
-                .collect(new KucoinKlineCollector());
+                .collect(TradeUtil.reduceKucoinKlines());
     }
 
     public static float calcData(List<KucoinKline> kucoinKlines, int i, int y, int predict) {
@@ -32,27 +37,36 @@ public class TradeUtil {
     }
 
     public static int getDelta(List<KucoinKline> kucoinKlines, int i) {
-        float data0 = kucoinKlines.get(i).getClose()
+        BigDecimal data0 = kucoinKlines.get(i).getClose()
                 .subtract(kucoinKlines.get(i).getOpen())
-                .multiply(kucoinKlines.get(i).getVolume())
-                .floatValue();
+                .multiply(kucoinKlines.get(i).getVolume());
 
-        float data1 = kucoinKlines.get(i + 1).getClose()
+        BigDecimal data1 = kucoinKlines.get(i + 1).getClose()
                 .subtract(kucoinKlines.get(i + 1).getOpen())
-                .multiply(kucoinKlines.get(i + 1).getVolume())
-                .floatValue();
+                .multiply(kucoinKlines.get(i + 1).getVolume());
 
-        float data2 = kucoinKlines.get(i + 2).getOpen()
+        BigDecimal data2 = kucoinKlines.get(i + 2).getOpen()
                 .subtract(kucoinKlines.get(i + 2).getClose())
-                .multiply(kucoinKlines.get(i + 2).getVolume())
-                .floatValue();
+                .multiply(kucoinKlines.get(i + 2).getVolume());
 
-        float data3 = kucoinKlines.get(i + 3).getOpen()
+        BigDecimal data3 = kucoinKlines.get(i + 3).getOpen()
                 .subtract(kucoinKlines.get(i + 3).getClose())
-                .multiply(kucoinKlines.get(i + 3).getVolume())
-                .floatValue();
+                .multiply(kucoinKlines.get(i + 3).getVolume());
 
-        int delta = round((data0 + data1 + data2 + data3 + (float) (OUTPUT_SIZE * CURRENCY_DELTA) / 2) / CURRENCY_DELTA);
+        BigDecimal data = data0
+                .add(data1)
+                .add(data2)
+                .add(data3);
+
+        BigDecimal diff = data0
+                        .add(data1)
+                .subtract(data2
+                        .add(data3))
+                .multiply(BigDecimal.valueOf(0.5F))
+                .abs()
+                .multiply(BigDecimal.valueOf(data.signum()));
+
+        int delta = (data.subtract(diff).intValue() + (OUTPUT_SIZE * CURRENCY_DELTA) / 2) / CURRENCY_DELTA;
 
         delta = Math.max(delta, 0);
         delta = Math.min(delta, 7);
@@ -68,5 +82,68 @@ public class TradeUtil {
                 String.format("%.2f", floatResult[0][5]) + " " +
                 String.format("%.2f", floatResult[0][6]) + " " +
                 String.format("%.2f", floatResult[0][7]);
+    }
+
+    public static Collector<KucoinKline, List<KucoinKline>, List<KucoinKline>> reduceKucoinKlines() {
+        return new KucoinKlineCollector();
+    }
+
+    static class KucoinKlineCollector implements Collector<KucoinKline, List<KucoinKline>, List<KucoinKline>> {
+        @Override
+        public Supplier<List<KucoinKline>> supplier() {
+            return ArrayList::new;
+        }
+
+        @Override
+        public BiConsumer<List<KucoinKline>, KucoinKline> accumulator() {
+            return (kucoinKlines, newKucoinKline) -> {
+                if (kucoinKlines.isEmpty()) {
+                    kucoinKlines.add(newKucoinKline);
+                    return;
+                }
+
+                KucoinKline prevKucoinKline = kucoinKlines.get(kucoinKlines.size() - 1);
+                if (newKucoinKline.getVolume().floatValue() < 0.3) {
+                    kucoinKlines.set(
+                            kucoinKlines.size() - 1,
+                            new KucoinKline(
+                                    prevKucoinKline.getPair(),
+                                    prevKucoinKline.getIntervalType(),
+                                    new Object[]{
+                                            (prevKucoinKline.getTime() + newKucoinKline.getTime()) / 2L,
+                                            prevKucoinKline.getOpen().floatValue(),
+                                            newKucoinKline.getClose().floatValue(),
+                                            prevKucoinKline.getHigh().compareTo(newKucoinKline.getHigh()) > 0 ?
+                                                    prevKucoinKline.getHigh().floatValue() :
+                                                    newKucoinKline.getHigh().floatValue(),
+                                            prevKucoinKline.getLow().compareTo(newKucoinKline.getHigh()) < 0 ?
+                                                    prevKucoinKline.getLow().floatValue() :
+                                                    newKucoinKline.getLow().floatValue(),
+                                            prevKucoinKline.getVolume().floatValue() + newKucoinKline.getVolume().floatValue(),
+                                            prevKucoinKline.getAmount().floatValue() + newKucoinKline.getAmount().floatValue()}
+                            )
+                    );
+                } else {
+                    kucoinKlines.add(newKucoinKline);
+                }
+            };
+        }
+
+        @Override
+        public BinaryOperator<List<KucoinKline>> combiner() {
+            return (kucoinKlines1, kucoinKlines2) -> {
+                throw new NotSupportedException();
+            };
+        }
+
+        @Override
+        public Function<List<KucoinKline>, List<KucoinKline>> finisher() {
+            return kucoinKlines -> kucoinKlines;
+        }
+
+        @Override
+        public Set<Characteristics> characteristics() {
+            return Collections.unmodifiableSet(EnumSet.of(Collector.Characteristics.IDENTITY_FINISH));
+        }
     }
 }

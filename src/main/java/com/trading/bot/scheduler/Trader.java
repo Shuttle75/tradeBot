@@ -46,7 +46,7 @@ public class Trader {
         float curVolume = kucoinKlines.get(0).getVolume().floatValue();
 
         if (active) {
-            if (maxPrice - curPrice > (float) CURRENCY_DELTA / 2 * curVolume) {
+            if (maxPrice - curPrice > CURRENCY_DELTA / curVolume) {
                 USDT = USDT / firstPrice * curPrice;
                 logger.info("{} Sell crypto !!!!!!!! {} firstPrice {} newPrice {}", rates, USDT, firstPrice, curPrice);
                 active = false;
