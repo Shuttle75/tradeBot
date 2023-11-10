@@ -6,10 +6,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @EnableScheduling
 @SpringBootApplication
-public class CryptoBotApplication {
+public class TradeModelApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(CryptoBotApplication.class, args);
+        SpringApplication.run(TradeModelApplication.class, args);
     }
 
 }

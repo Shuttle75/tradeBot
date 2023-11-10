@@ -52,10 +52,10 @@ public class Trader {
                 logger.info("Sell crypto !!!!!!!! {} firstPrice {} newPrice {}", USDT, firstPrice, curPrice);
                 active = false;
             } else {
-                if (maxPrice.compareTo(curPrice) > 0) {
+                if (maxPrice.compareTo(curPrice) < 0) {
                     maxPrice = curPrice;
                 }
-                logger.info("HOLD the crypto maxPrice {}", maxPrice);
+                logger.info("HOLD the crypto maxPrice {} curPrice {}", maxPrice, curPrice);
             }
         } else {
             List<KucoinKline> kucoinKlines = getKlines();

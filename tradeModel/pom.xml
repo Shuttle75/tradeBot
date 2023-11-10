@@ -9,10 +9,10 @@
     <relativePath/> <!-- lookup parent from repository -->
   </parent>
   <groupId>com.trade.bot</groupId>
-  <artifactId>cryptoBot</artifactId>
+  <artifactId>tradeModel</artifactId>
   <version>0.0.1-SNAPSHOT</version>
-  <name>cryptoBot</name>
-  <description>cryptoBot</description>
+  <name>tradeModel</name>
+  <description>tradeModel</description>
   <properties>
     <java.version>17</java.version>
   </properties>
