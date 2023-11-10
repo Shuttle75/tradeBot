@@ -1,6 +1,7 @@
 package com.trading.bot.util;
 
 import org.knowm.xchange.Exchange;
+import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.kucoin.KucoinMarketDataService;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 
@@ -20,6 +21,11 @@ import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min1;
 public class TradeUtil {
 
     private TradeUtil() {
+    }
+
+    public static Ticker getTicker(Exchange exchange) throws IOException {
+        return ((KucoinMarketDataService) exchange.getMarketDataService())
+                .getTicker(CURRENCY_PAIR);
     }
 
     public static List<KucoinKline> getKucoinKlines(Exchange exchange, long startDate, long endDate) throws IOException {
@@ -62,7 +68,7 @@ public class TradeUtil {
                         .add(data1)
                 .subtract(data2
                         .add(data3))
-                .multiply(BigDecimal.valueOf(0.5F))
+                .multiply(BigDecimal.valueOf(0.7F))
                 .abs()
                 .multiply(BigDecimal.valueOf(data.signum()));
 
@@ -82,6 +88,17 @@ public class TradeUtil {
                 String.format("%.2f", floatResult[0][5]) + " " +
                 String.format("%.2f", floatResult[0][6]) + " " +
                 String.format("%.2f", floatResult[0][7]);
+    }
+
+    public static String printRates(float[] floatResult) {
+        return String.format("%.2f", floatResult[0]) + " " +
+                String.format("%.2f", floatResult[1]) + " " +
+                String.format("%.2f", floatResult[2]) + " " +
+                String.format("%.2f", floatResult[3]) + " | " +
+                String.format("%.2f", floatResult[4]) + " " +
+                String.format("%.2f", floatResult[5]) + " " +
+                String.format("%.2f", floatResult[6]) + " " +
+                String.format("%.2f", floatResult[7]);
     }
 
     public static Collector<KucoinKline, List<KucoinKline>, List<KucoinKline>> reduceKucoinKlines() {
