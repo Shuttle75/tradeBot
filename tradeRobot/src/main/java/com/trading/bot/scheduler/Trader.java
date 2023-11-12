@@ -1,12 +1,15 @@
 package com.trading.bot.scheduler;
 
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
+import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
+import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -30,6 +33,8 @@ public class Trader {
     private BigDecimal maxPrice;
     private BigDecimal firstPrice;
 
+    @Value("${trader.buylimit}")
+    public float traderBuyLimit;
 
 
     // Only for test !!!!!!!!!!!!!
@@ -40,15 +45,19 @@ public class Trader {
         this.model = model;
     }
 
-    @Scheduled(cron = "*/5 * * * * *")
+    @Scheduled(cron = "55 * * * * *")
     public void trade() throws IOException {
+        List<KucoinKline> kucoinKlines = getKlines();
+        KucoinKline lastKline0 = kucoinKlines.get(0);
+        KucoinKline lastKline1 = kucoinKlines.get(0);
+
         if (active) {
             Ticker ticker = getTicker(exchange);
             BigDecimal curPrice = ticker.getLast();
-            BigDecimal curVolume = ticker.getVolume();
 
-            if (maxPrice.subtract(curPrice).floatValue() > CURRENCY_DELTA / curVolume.floatValue()) {
-                USDT = USDT.divide(firstPrice, 2, RoundingMode.HALF_UP).multiply(curPrice);
+            if (lastKline0.getOpen().subtract(lastKline0.getClose())
+                    .compareTo(lastKline1.getClose().subtract(lastKline1.getOpen())) > 0) {
+                USDT = USDT.multiply(curPrice).divide(firstPrice, 2, RoundingMode.HALF_UP);
                 logger.info("Sell crypto !!!!!!!! {} firstPrice {} newPrice {}", USDT, firstPrice, curPrice);
                 active = false;
             } else {
@@ -58,16 +67,14 @@ public class Trader {
                 logger.info("HOLD the crypto maxPrice {} curPrice {}", maxPrice, curPrice);
             }
         } else {
-            List<KucoinKline> kucoinKlines = getKlines();
-            KucoinKline lastKline = kucoinKlines.get(0);
             float[] floatResult = getPredict(kucoinKlines);
             String rates = printRates(floatResult);
 
-            if (floatResult[7] > 0.8) {
+            if (floatResult[7] > 0.5) {
                 active = true;
-                firstPrice = lastKline.getClose();
-                maxPrice = lastKline.getClose();
-                logger.info("{}  Buy crypto !!!!!!!! Price {}", rates, lastKline.getClose());
+                firstPrice = lastKline0.getClose();
+                maxPrice = lastKline0.getClose();
+                logger.info("{}  Buy crypto !!!!!!!! {} Price {}", rates, USDT, lastKline0.getClose());
             } else {
                 logger.info("{}  NOT Buy crypto", rates);
             }
@@ -92,6 +99,25 @@ public class Trader {
             floatData[i][y] = calcData(kucoinKlines, i, y, 0);
         }
 
-        return model.output(Nd4j.create(floatData)).toFloatVector();
+        try (INDArray indData = Nd4j.create(floatData);) {
+            return model.output(indData).toFloatVector();
+        }
+    }
+
+    private void learnModel(List<KucoinKline> kucoinKlines) {
+        float[][] floatData = new float[1][TRAIN_DEEP];
+        int[][] intLabels = new int[1][OUTPUT_SIZE];
+
+        for (int y = 0; y < TRAIN_DEEP; y++) {
+            int i = 0;
+            floatData[i][y] = calcData(kucoinKlines, i, y, PREDICT_DEEP);
+            intLabels[i][getDelta(kucoinKlines, i)] = 1;
+        }
+
+        try (INDArray indData = Nd4j.create(floatData);
+             INDArray indLabels = Nd4j.create(intLabels)) {
+            model.fit(indData, indLabels);
+            model.fit(indData, indLabels);
+        }
     }
 }

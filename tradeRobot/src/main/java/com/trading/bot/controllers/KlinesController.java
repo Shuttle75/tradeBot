@@ -34,21 +34,24 @@ public class KlinesController {
 
     @GetMapping(path = "predict")
     public List<String> getPredict() throws IOException {
-        int goodMark = 0, wrongMark = 0;
-        int goodSign = 0, wrongSign = 0;
+        int goodMark = 0;
+        int wrongMark = 0;
+        int goodSign = 0;
+        int wrongSign = 0;
         final long startDate = LocalDateTime.now(ZoneOffset.UTC)
                 .truncatedTo(ChronoUnit.DAYS)
-                .minusDays(1)
+                .minusDays(2)
                 .toEpochSecond(ZoneOffset.UTC);
         final long endDate = LocalDateTime.now(ZoneOffset.UTC)
                 .truncatedTo(ChronoUnit.DAYS)
+                .minusDays(1)
                 .toEpochSecond(ZoneOffset.UTC);
 
         final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
 
-        float[][] floatData = new float[kucoinKlines.size() - TRAIN_DEEP][TRAIN_DEEP];
-        int[][] intLabels = new int[kucoinKlines.size() - TRAIN_DEEP][OUTPUT_SIZE];
-        for (int i = 0; i < kucoinKlines.size() - TRAIN_DEEP; i++) {
+        float[][] floatData = new float[kucoinKlines.size() - TRAIN_DEEP - PREDICT_DEEP][TRAIN_DEEP];
+        int[][] intLabels = new int[kucoinKlines.size() - TRAIN_DEEP - PREDICT_DEEP][OUTPUT_SIZE];
+        for (int i = 0; i < kucoinKlines.size() - TRAIN_DEEP - PREDICT_DEEP; i++) {
             for (int y = 0; y < TRAIN_DEEP; y++) {
                 floatData[i][y] = calcData(kucoinKlines, i, y, PREDICT_DEEP);
             }
@@ -61,7 +64,7 @@ public class KlinesController {
         float[][] floatResult = model.output(indData).toFloatMatrix();
 
         List<String> listResult = new ArrayList<>();
-        for (int i = 0; i < kucoinKlines.size() - TRAIN_DEEP; i++) {
+        for (int i = 0; i < kucoinKlines.size() - TRAIN_DEEP - PREDICT_DEEP; i++) {
             if (floatResult[i][0] + floatResult[i][1] + floatResult[i][2] + floatResult[i][3] > 0.5) {
                 if (intLabels[i][0] + intLabels[i][1] + intLabels[i][2] + intLabels[i][3] > 0.5) {
                     goodSign++;
