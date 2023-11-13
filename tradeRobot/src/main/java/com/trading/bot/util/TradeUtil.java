@@ -30,9 +30,7 @@ public class TradeUtil {
 
     public static List<KucoinKline> getKucoinKlines(Exchange exchange, long startDate, long endDate) throws IOException {
         return ((KucoinMarketDataService) exchange.getMarketDataService())
-                .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min1)
-                .stream()
-                .collect(TradeUtil.reduceKucoinKlines());
+                .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min1);
     }
 
     public static float calcData(List<KucoinKline> kucoinKlines, int i, int y, int predict) {
@@ -51,20 +49,7 @@ public class TradeUtil {
                 .subtract(kucoinKlines.get(i + 1).getOpen())
                 .multiply(kucoinKlines.get(i + 1).getVolume());
 
-        BigDecimal data2 = kucoinKlines.get(i + 2).getClose()
-                .subtract(kucoinKlines.get(i + 2).getOpen())
-                .multiply(kucoinKlines.get(i + 2).getVolume());
-
-        BigDecimal data3 = kucoinKlines.get(i + 3).getClose()
-                .subtract(kucoinKlines.get(i + 3).getOpen())
-                .multiply(kucoinKlines.get(i + 3).getVolume());
-
-        BigDecimal data = data0
-                .add(data1)
-                .add(data2)
-                .add(data3);
-
-        int delta = (data.intValue() + (OUTPUT_SIZE * CURRENCY_DELTA) / 2) / CURRENCY_DELTA;
+        int delta = (data0.add(data1).intValue() + (OUTPUT_SIZE * CURRENCY_DELTA) / 2) / CURRENCY_DELTA;
 
         delta = Math.max(delta, 0);
         delta = Math.min(delta, 7);

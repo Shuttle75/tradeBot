@@ -27,9 +27,9 @@ import java.io.IOException;
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int OUTPUT_SIZE = 8;
-    public static final int TRAIN_DEEP = 24;
-    public static final int PREDICT_DEEP = 4;
-    public static final int CURRENCY_DELTA = 10;
+    public static final int TRAIN_DEEP = 60;
+    public static final int PREDICT_DEEP = 2;
+    public static final int CURRENCY_DELTA = 20;
 
     @Value("${model.bucket}")
     public String bucketName;

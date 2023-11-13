@@ -30,6 +30,7 @@ public class Trader {
     private final Exchange exchange;
     private final MultiLayerNetwork model;
     private boolean active;
+    private boolean firstRun = true;
     private BigDecimal maxPrice;
     private BigDecimal firstPrice;
 
@@ -45,11 +46,29 @@ public class Trader {
         this.model = model;
     }
 
-    @Scheduled(cron = "55 * * * * *")
+    @Scheduled(cron = "50 * * * * *")
     public void trade() throws IOException {
         List<KucoinKline> kucoinKlines = getKlines();
         KucoinKline lastKline0 = kucoinKlines.get(0);
         KucoinKline lastKline1 = kucoinKlines.get(0);
+
+        if (firstRun) {
+            INDArray nextInput = Nd4j.zeros(1, 2, TRAIN_DEEP);
+
+            for (int y = TRAIN_DEEP - 1; y >= 0; y--) {
+                nextInput.putScalar(new int[]{0, 0, y},
+                        kucoinKlines.get(y).getClose()
+                                .subtract(kucoinKlines.get(y).getOpen())
+                                .floatValue());
+                nextInput.putScalar(new int[]{0, 1, y},
+                        kucoinKlines.get(y).getVolume()
+                                .floatValue());
+            }
+            model.rnnTimeStep(nextInput);
+            logger.info("First boot");
+            firstRun = false;
+            return;
+        }
 
         if (active) {
             Ticker ticker = getTicker(exchange);
@@ -70,7 +89,7 @@ public class Trader {
             float[] floatResult = getPredict(kucoinKlines);
             String rates = printRates(floatResult);
 
-            if (floatResult[7] > 0.5) {
+            if (floatResult[7] > 0.7) {
                 active = true;
                 firstPrice = lastKline0.getClose();
                 maxPrice = lastKline0.getClose();
@@ -93,31 +112,17 @@ public class Trader {
     }
 
     private float[] getPredict(List<KucoinKline> kucoinKlines) {
-        float[][] floatData = new float[1][TRAIN_DEEP];
-        int i = 0;
-        for (int y = 0; y < TRAIN_DEEP; y++) {
-            floatData[i][y] = calcData(kucoinKlines, i, y, 0);
-        }
+        try (INDArray nextInput = Nd4j.zeros(1, 2, 1)) {
 
-        try (INDArray indData = Nd4j.create(floatData);) {
-            return model.output(indData).toFloatVector();
-        }
-    }
+            nextInput.putScalar(new int[]{0, 0, 0},
+                    kucoinKlines.get(0).getClose()
+                            .subtract(kucoinKlines.get(0).getOpen())
+                            .floatValue());
+            nextInput.putScalar(new int[]{0, 1, 0},
+                    kucoinKlines.get(0).getVolume()
+                            .floatValue());
 
-    private void learnModel(List<KucoinKline> kucoinKlines) {
-        float[][] floatData = new float[1][TRAIN_DEEP];
-        int[][] intLabels = new int[1][OUTPUT_SIZE];
-
-        for (int y = 0; y < TRAIN_DEEP; y++) {
-            int i = 0;
-            floatData[i][y] = calcData(kucoinKlines, i, y, PREDICT_DEEP);
-            intLabels[i][getDelta(kucoinKlines, i)] = 1;
-        }
-
-        try (INDArray indData = Nd4j.create(floatData);
-             INDArray indLabels = Nd4j.create(intLabels)) {
-            model.fit(indData, indLabels);
-            model.fit(indData, indLabels);
+            return model.rnnTimeStep(nextInput).ravel().toFloatVector();
         }
     }
 }

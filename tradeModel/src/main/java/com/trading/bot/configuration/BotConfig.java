@@ -5,10 +5,13 @@ import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import org.apache.commons.io.FilenameUtils;
+import org.deeplearning4j.nn.conf.GradientNormalization;
 import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
 import org.deeplearning4j.nn.conf.layers.DenseLayer;
+import org.deeplearning4j.nn.conf.layers.LSTM;
 import org.deeplearning4j.nn.conf.layers.OutputLayer;
+import org.deeplearning4j.nn.conf.layers.RnnOutputLayer;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.weights.WeightInit;
 import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
@@ -21,6 +24,7 @@ import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.nd4j.linalg.activations.Activation;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
+import org.nd4j.linalg.learning.config.Nadam;
 import org.nd4j.linalg.learning.config.Sgd;
 import org.nd4j.linalg.lossfunctions.LossFunctions;
 import org.slf4j.Logger;
@@ -36,6 +40,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static com.trading.bot.util.TradeUtil.*;
 
@@ -43,9 +48,9 @@ import static com.trading.bot.util.TradeUtil.*;
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int OUTPUT_SIZE = 8;
-    public static final int TRAIN_DEEP = 24;
-    public static final int PREDICT_DEEP = 4;
-    public static final int CURRENCY_DELTA = 10;
+    public static final int TRAIN_DEEP = 60;
+    public static final int PREDICT_DEEP = 2;
+    public static final int CURRENCY_DELTA = 20;
 
     @Value("${model.bucket}")
     public String bucketName;
@@ -75,21 +80,16 @@ public class BotConfig {
     public MultiLayerConfiguration getConfig() {
         logger.info("Build model....");
         return new NeuralNetConfiguration.Builder()
-                .seed(6)
-                .activation(Activation.TANH)
+                .seed(123)    //Random number generator seed for improved repeatability. Optional.
                 .weightInit(WeightInit.XAVIER)
-                .updater(new Sgd(0.1))
-                .l2(1e-4)
+                .updater(new Nadam())
+                .gradientNormalization(GradientNormalization.ClipElementWiseAbsoluteValue)  //Not always required, but helps with this data set
+                .gradientNormalizationThreshold(0.5)
                 .list()
-                .layer(new DenseLayer.Builder().nIn(TRAIN_DEEP).nOut(4096).dropOut(0.5)
-                        .build())
-                .layer(new DenseLayer.Builder().nIn(4096).nOut(512)
-                        .build())
-                .layer(new DenseLayer.Builder().nIn(512).nOut(64)
-                        .build())
-                .layer(new OutputLayer.Builder(LossFunctions.LossFunction.NEGATIVELOGLIKELIHOOD)
-                        .activation(Activation.SOFTMAX) //Override the global TANH activation with softmax for this layer
-                        .nIn(64).nOut(OUTPUT_SIZE).build())
+                .layer(new LSTM.Builder()
+                        .activation(Activation.TANH).nIn(2).nOut(128).build())
+                .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
+                        .activation(Activation.SOFTMAX).nIn(128).nOut(OUTPUT_SIZE).build())
                 .build();
     }
 
@@ -99,22 +99,12 @@ public class BotConfig {
         LocalDateTime endDate = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.DAYS).plusDays(1);
         final List<KucoinKline> kucoinKlines = new ArrayList<>();
 
-        for (long i = 0; i < 3; i++) {
+        for (long i = 0; i < 11; i++) {
             kucoinKlines.addAll(
                     getKucoinKlines(
                             exchange,
                             startDate.minusDays(i).toEpochSecond(ZoneOffset.UTC),
                             endDate.minusDays(i).toEpochSecond(ZoneOffset.UTC)));
-        }
-
-        float[][] floatData = new float[kucoinKlines.size() - TRAIN_DEEP - PREDICT_DEEP][TRAIN_DEEP];
-        int[][] intLabels = new int[kucoinKlines.size() - TRAIN_DEEP - PREDICT_DEEP][OUTPUT_SIZE];
-        for (int i = 0; i < kucoinKlines.size() - TRAIN_DEEP - PREDICT_DEEP; i++) {
-            for (int y = 0; y < TRAIN_DEEP; y++) {
-                floatData[i][y] = calcData(kucoinKlines, i, y, PREDICT_DEEP);
-            }
-
-            intLabels[i][getDelta(kucoinKlines, i)] = 1;
         }
 
         //run the model
@@ -123,11 +113,32 @@ public class BotConfig {
         //record score once every 100 iterations
         model.setListeners(new ScoreIterationListener(100));
 
-        try (INDArray indData = Nd4j.create(floatData);
-             INDArray indLabels = Nd4j.create(intLabels)) {
-            for (int i = 0; i < 1000; i++) {
-                model.fit(indData, indLabels);
+        try (INDArray indData = Nd4j.zeros(240, 2, TRAIN_DEEP);
+             INDArray indLabels = Nd4j.zeros(240, OUTPUT_SIZE, TRAIN_DEEP)) {
+
+            for (int i = 239; i >= 0 ; i--) {
+                for (int y = TRAIN_DEEP - 1; y >= 0 ; y--) {
+                    indData.putScalar(new int[]{i, 0, y},
+                            kucoinKlines.get(i + y + PREDICT_DEEP).getClose()
+                                    .subtract(kucoinKlines.get(i + y + PREDICT_DEEP).getOpen())
+                                    .floatValue());
+                    indData.putScalar(new int[]{i, 1, y},
+                            kucoinKlines.get(i + y + PREDICT_DEEP).getVolume()
+                                    .floatValue());
+                    indLabels.putScalar(new int[]{i, getDelta(kucoinKlines, i * TRAIN_DEEP, y), y}, 1);
+                }
             }
+
+            try {
+                for (int i = 0; i < 3200; i++) {
+                    model.fit(indData, indLabels);
+                    TimeUnit.SECONDS.sleep(1);    // Cooling CPU
+                }
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
+
         }
 
         final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
