@@ -2,7 +2,6 @@ package com.trading.bot.scheduler;
 
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.knowm.xchange.Exchange;
-import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
@@ -17,7 +16,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -76,8 +74,7 @@ public class Trader {
             float[] floatResult = getPredict(kucoinKlines);
             String rates = printRates(floatResult);
 
-            if (floatResult[7] > 0.7
-                    && lastKline0.getClose().subtract(lastKline0.getOpen()).floatValue() > 0) {
+            if (floatResult[7] > 0.5) {
                 active = true;
                 firstPrice = lastKline0.getClose();
                 maxPrice = lastKline0.getClose();

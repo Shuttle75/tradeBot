@@ -84,7 +84,7 @@ public class BotConfig {
                 .gradientNormalizationThreshold(0.5)
                 .list()
                 .layer(new LSTM.Builder()
-                        .activation(Activation.TANH).nIn(2).nOut(128).build())
+                        .activation(Activation.TANH).nIn(4).nOut(128).build())
                 .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
                         .activation(Activation.SOFTMAX).nIn(128).nOut(OUTPUT_SIZE).build())
                 .build();
@@ -110,25 +110,31 @@ public class BotConfig {
         //record score once every 100 iterations
         model.setListeners(new ScoreIterationListener(100));
 
-        try (INDArray indData = Nd4j.zeros(240, 2, TRAIN_DEEP);
+        try (INDArray indData = Nd4j.zeros(240, 4, TRAIN_DEEP);
              INDArray indLabels = Nd4j.zeros(240, OUTPUT_SIZE, TRAIN_DEEP)) {
 
             for (int i = 239; i >= 0 ; i--) {
                 for (int y = TRAIN_DEEP - 1; y >= 0 ; y--) {
+                    int pos = i + y + PREDICT_DEEP;
                     indData.putScalar(new int[]{i, 0, y},
-                            kucoinKlines.get(i + y + PREDICT_DEEP).getClose()
-                                    .subtract(kucoinKlines.get(i + y + PREDICT_DEEP).getOpen())
-                                    .floatValue());
+                            kucoinKlines.get(pos).getClose().subtract(kucoinKlines.get(pos).getOpen()).floatValue());
                     indData.putScalar(new int[]{i, 1, y},
-                            kucoinKlines.get(i + y + PREDICT_DEEP).getVolume()
-                                    .floatValue());
+                            kucoinKlines.get(pos).getClose().compareTo(kucoinKlines.get(pos).getOpen()) > 0 ?
+                                    kucoinKlines.get(pos).getHigh().subtract(kucoinKlines.get(pos).getClose()).floatValue() :
+                                    kucoinKlines.get(pos).getHigh().subtract(kucoinKlines.get(pos).getOpen()).floatValue());
+                    indData.putScalar(new int[]{i, 2, y},
+                            kucoinKlines.get(pos).getClose().compareTo(kucoinKlines.get(pos).getOpen()) > 0 ?
+                                    kucoinKlines.get(pos).getOpen().subtract(kucoinKlines.get(pos).getLow()).floatValue() :
+                                    kucoinKlines.get(pos).getClose().subtract(kucoinKlines.get(pos).getLow()).floatValue());
+                    indData.putScalar(new int[]{i, 3, y},
+                            kucoinKlines.get(pos).getVolume().floatValue());
                     indLabels.putScalar(new int[]{i, getDelta(kucoinKlines, i * TRAIN_DEEP, y), y}, 1);
                 }
             }
 
             for (int i = 0; i < 3200; i++) {
                 model.fit(indData, indLabels);
-                TimeUnit.SECONDS.sleep(1);    // Cooling CPU
+                TimeUnit.MILLISECONDS.sleep(500);    // Cooling CPU
             }
         } catch (InterruptedException e) {
             logger.error(e.getMessage());
