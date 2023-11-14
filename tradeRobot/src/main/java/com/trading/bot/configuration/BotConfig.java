@@ -128,6 +128,6 @@ public class BotConfig {
                             .floatValue());
         }
         net.rnnTimeStep(nextInput);
-        logger.info("First hour loaded to net");
+        logger.info("First hour loaded to MultiLayerNetwork");
     }
 }

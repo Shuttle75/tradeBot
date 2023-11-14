@@ -44,22 +44,22 @@ public class Trader {
         this.model = model;
     }
 
-    @Scheduled(cron = "50 * * * * *")
+    @Scheduled(cron = "55 * * * * *")
     public void trade() throws IOException, InterruptedException {
-        List<KucoinKline> kucoinKlines = getKlines();
-        KucoinKline lastKline0 = kucoinKlines.get(0);
-        KucoinKline lastKline1 = kucoinKlines.get(1);
 
         if (active) {
-            for (int i = 0; i < 10; i++) {
-                Ticker ticker = getTicker(exchange);
-                BigDecimal curPrice = ticker.getLast();
+            while (true) {
+                List<KucoinKline> kucoinKlines = getKlines();
+                KucoinKline lastKline0 = kucoinKlines.get(0);
+                KucoinKline lastKline1 = kucoinKlines.get(1);
+                BigDecimal curPrice = kucoinKlines.get(0).getClose();
 
-                if (lastKline0.getOpen().subtract(lastKline0.getClose())
-                        .compareTo(lastKline1.getClose().subtract(lastKline1.getOpen())) > 0) {
+                if (lastKline0.getClose().compareTo(lastKline1.getOpen()) < 0
+                        && lastKline0.getClose().subtract(lastKline0.getOpen()).floatValue() < 0) {
                     USDT = USDT.multiply(curPrice).divide(firstPrice, 2, RoundingMode.HALF_UP);
                     logger.info("Sell crypto !!!!!!!! {} firstPrice {} newPrice {}", USDT, firstPrice, curPrice);
                     active = false;
+                    return;
                 } else {
                     if (maxPrice.compareTo(curPrice) < 0) {
                         maxPrice = curPrice;
@@ -67,27 +67,30 @@ public class Trader {
                     logger.info("HOLD the crypto maxPrice {} curPrice {}", maxPrice, curPrice);
                 }
 
-                TimeUnit.SECONDS.sleep(5);    // Cooling CPU
+                TimeUnit.SECONDS.sleep(10);    // Cooling CPU
             }
         } else {
+            List<KucoinKline> kucoinKlines = getKlines();
+            KucoinKline lastKline0 = kucoinKlines.get(0);
+
             float[] floatResult = getPredict(kucoinKlines);
             String rates = printRates(floatResult);
 
-            if (floatResult[7] > 0.7) {
+            if (floatResult[7] > 0.7
+                    && lastKline0.getClose().subtract(lastKline0.getOpen()).floatValue() > 0) {
                 active = true;
                 firstPrice = lastKline0.getClose();
                 maxPrice = lastKline0.getClose();
                 logger.info("{}  Buy crypto !!!!!!!! {} Price {}", rates, USDT, lastKline0.getClose());
             } else {
-                logger.info("{}  NOT Buy crypto", rates);
+                logger.info("{}", rates);
             }
         }
     }
 
     private List<KucoinKline> getKlines() throws IOException {
         final long startDate = LocalDateTime.now(ZoneOffset.UTC)
-                .truncatedTo(ChronoUnit.MINUTES)
-                .minusHours(2)
+                .minusMinutes(10)
                 .toEpochSecond(ZoneOffset.UTC);
         final long endDate = LocalDateTime.now(ZoneOffset.UTC)
                 .toEpochSecond(ZoneOffset.UTC);
