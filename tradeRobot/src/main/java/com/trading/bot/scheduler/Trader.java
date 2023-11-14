@@ -52,20 +52,23 @@ public class Trader {
                 KucoinKline lastKline1 = kucoinKlines.get(1);
                 BigDecimal curPrice = kucoinKlines.get(0).getClose();
 
+                float[] floatResult = getPredict(kucoinKlines);
+                String rates = printRates(floatResult);
+
                 if (lastKline0.getClose().compareTo(lastKline1.getOpen()) < 0
                         && lastKline0.getClose().subtract(lastKline0.getOpen()).floatValue() < 0) {
                     USDT = USDT.multiply(curPrice).divide(firstPrice, 2, RoundingMode.HALF_UP);
-                    logger.info("Sell crypto !!!!!!!! {} firstPrice {} newPrice {}", USDT, firstPrice, curPrice);
+                    logger.info("{} Sell crypto !!!!!!!! {} firstPrice {} newPrice {}", rates, USDT, firstPrice, curPrice);
                     active = false;
                     return;
                 } else {
                     if (maxPrice.compareTo(curPrice) < 0) {
                         maxPrice = curPrice;
                     }
-                    logger.info("HOLD the crypto maxPrice {} curPrice {}", maxPrice, curPrice);
+                    logger.info("{} HOLD the crypto maxPrice {} curPrice {}", rates, maxPrice, curPrice);
                 }
 
-                TimeUnit.SECONDS.sleep(10);    // Cooling CPU
+                TimeUnit.SECONDS.sleep(5);    // Cooling CPU
             }
         } else {
             List<KucoinKline> kucoinKlines = getKlines();
@@ -78,7 +81,7 @@ public class Trader {
                 active = true;
                 firstPrice = lastKline0.getClose();
                 maxPrice = lastKline0.getClose();
-                logger.info("{}  Buy crypto !!!!!!!! {} Price {}", rates, USDT, lastKline0.getClose());
+                logger.info("{} Buy crypto !!!!!!!! {} Price {}", rates, USDT, lastKline0.getClose());
             } else {
                 logger.info("{}", rates);
             }

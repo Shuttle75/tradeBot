@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.List;
 
 import static com.trading.bot.util.TradeUtil.getKucoinKlines;
@@ -116,16 +117,15 @@ public class BotConfig {
 
         List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
 
-        INDArray nextInput = Nd4j.zeros(1, 2, TRAIN_DEEP);
+        Collections.reverse(kucoinKlines);
 
-        for (int y = TRAIN_DEEP - 1; y >= 0; y--) {
+        INDArray nextInput = Nd4j.zeros(1, 2, TRAIN_DEEP);
+        for (int y = 0; y < TRAIN_DEEP; y++) {
             nextInput.putScalar(new int[]{0, 0, y},
                     kucoinKlines.get(y).getClose()
-                            .subtract(kucoinKlines.get(y).getOpen())
-                            .floatValue());
+                            .subtract(kucoinKlines.get(y).getOpen()).floatValue());
             nextInput.putScalar(new int[]{0, 1, y},
-                    kucoinKlines.get(y).getVolume()
-                            .floatValue());
+                    kucoinKlines.get(y).getVolume().floatValue());
         }
         net.rnnTimeStep(nextInput);
         logger.info("First hour loaded to MultiLayerNetwork");
