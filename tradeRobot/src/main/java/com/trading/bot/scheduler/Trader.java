@@ -1,7 +1,6 @@
 package com.trading.bot.scheduler;
 
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
-import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
@@ -50,7 +49,7 @@ public class Trader {
     public void trade() throws IOException {
         List<KucoinKline> kucoinKlines = getKlines();
         KucoinKline lastKline0 = kucoinKlines.get(0);
-        KucoinKline lastKline1 = kucoinKlines.get(0);
+        KucoinKline lastKline1 = kucoinKlines.get(1);
 
         if (firstRun) {
             INDArray nextInput = Nd4j.zeros(1, 2, TRAIN_DEEP);

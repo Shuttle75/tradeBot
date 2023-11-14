@@ -33,13 +33,6 @@ public class TradeUtil {
                 .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min1);
     }
 
-    public static float calcData(List<KucoinKline> kucoinKlines, int i, int y, int predict) {
-        return kucoinKlines.get(i + y + predict).getClose()
-                .subtract(kucoinKlines.get(i + y + predict).getOpen())
-                .multiply(kucoinKlines.get(i + y + predict).getVolume())
-                .floatValue();
-    }
-
     public static int getDelta(List<KucoinKline> kucoinKlines, int i, int y) {
         BigDecimal data0 = kucoinKlines.get(i + y).getClose()
                 .subtract(kucoinKlines.get(i + y).getOpen())
