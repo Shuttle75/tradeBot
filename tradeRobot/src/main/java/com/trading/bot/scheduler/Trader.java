@@ -19,8 +19,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
-import static com.trading.bot.configuration.BotConfig.*;
 import static com.trading.bot.util.TradeUtil.*;
 
 @Service
@@ -29,7 +29,6 @@ public class Trader {
     private final Exchange exchange;
     private final MultiLayerNetwork model;
     private boolean active;
-    private boolean firstRun = true;
     private BigDecimal maxPrice;
     private BigDecimal firstPrice;
 
@@ -46,43 +45,29 @@ public class Trader {
     }
 
     @Scheduled(cron = "50 * * * * *")
-    public void trade() throws IOException {
+    public void trade() throws IOException, InterruptedException {
         List<KucoinKline> kucoinKlines = getKlines();
         KucoinKline lastKline0 = kucoinKlines.get(0);
         KucoinKline lastKline1 = kucoinKlines.get(1);
 
-        if (firstRun) {
-            INDArray nextInput = Nd4j.zeros(1, 2, TRAIN_DEEP);
-
-            for (int y = TRAIN_DEEP - 1; y >= 0; y--) {
-                nextInput.putScalar(new int[]{0, 0, y},
-                        kucoinKlines.get(y).getClose()
-                                .subtract(kucoinKlines.get(y).getOpen())
-                                .floatValue());
-                nextInput.putScalar(new int[]{0, 1, y},
-                        kucoinKlines.get(y).getVolume()
-                                .floatValue());
-            }
-            model.rnnTimeStep(nextInput);
-            logger.info("First boot");
-            firstRun = false;
-            return;
-        }
-
         if (active) {
-            Ticker ticker = getTicker(exchange);
-            BigDecimal curPrice = ticker.getLast();
+            for (int i = 0; i < 10; i++) {
+                Ticker ticker = getTicker(exchange);
+                BigDecimal curPrice = ticker.getLast();
 
-            if (lastKline0.getOpen().subtract(lastKline0.getClose())
-                    .compareTo(lastKline1.getClose().subtract(lastKline1.getOpen())) > 0) {
-                USDT = USDT.multiply(curPrice).divide(firstPrice, 2, RoundingMode.HALF_UP);
-                logger.info("Sell crypto !!!!!!!! {} firstPrice {} newPrice {}", USDT, firstPrice, curPrice);
-                active = false;
-            } else {
-                if (maxPrice.compareTo(curPrice) < 0) {
-                    maxPrice = curPrice;
+                if (lastKline0.getOpen().subtract(lastKline0.getClose())
+                        .compareTo(lastKline1.getClose().subtract(lastKline1.getOpen())) > 0) {
+                    USDT = USDT.multiply(curPrice).divide(firstPrice, 2, RoundingMode.HALF_UP);
+                    logger.info("Sell crypto !!!!!!!! {} firstPrice {} newPrice {}", USDT, firstPrice, curPrice);
+                    active = false;
+                } else {
+                    if (maxPrice.compareTo(curPrice) < 0) {
+                        maxPrice = curPrice;
+                    }
+                    logger.info("HOLD the crypto maxPrice {} curPrice {}", maxPrice, curPrice);
                 }
-                logger.info("HOLD the crypto maxPrice {} curPrice {}", maxPrice, curPrice);
+
+                TimeUnit.SECONDS.sleep(5);    // Cooling CPU
             }
         } else {
             float[] floatResult = getPredict(kucoinKlines);

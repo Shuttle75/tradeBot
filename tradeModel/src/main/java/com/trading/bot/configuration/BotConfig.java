@@ -126,14 +126,13 @@ public class BotConfig {
                 }
             }
 
-            try {
-                for (int i = 0; i < 3200; i++) {
-                    model.fit(indData, indLabels);
-                    TimeUnit.SECONDS.sleep(1);    // Cooling CPU
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+            for (int i = 0; i < 3200; i++) {
+                model.fit(indData, indLabels);
+                TimeUnit.SECONDS.sleep(1);    // Cooling CPU
             }
+        } catch (InterruptedException e) {
+            logger.error(e.getMessage());
+            Thread.currentThread().interrupt();
         }
 
         final AmazonS3 s3 = AmazonS3ClientBuilder.standard()

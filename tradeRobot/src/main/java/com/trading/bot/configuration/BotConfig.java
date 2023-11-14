@@ -13,6 +13,9 @@ import org.knowm.xchange.ExchangeFactory;
 import org.knowm.xchange.ExchangeSpecification;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.kucoin.KucoinExchange;
+import org.knowm.xchange.kucoin.dto.response.KucoinKline;
+import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.factory.Nd4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +25,12 @@ import org.springframework.context.annotation.Configuration;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+
+import static com.trading.bot.util.TradeUtil.getKucoinKlines;
 
 @Configuration
 public class BotConfig {
@@ -56,7 +65,7 @@ public class BotConfig {
     }
 
     @Bean
-    public MultiLayerNetwork getModel() {
+    public MultiLayerNetwork getModel(Exchange exchange) throws IOException {
         final String keyName = CURRENCY_PAIR.base + ".zip";
         final String path = FilenameUtils.concat(
                 System.getProperty("java.io.tmpdir"), keyName);
@@ -68,10 +77,10 @@ public class BotConfig {
             S3Object o = s3.getObject(bucketName, keyName);
             S3ObjectInputStream s3is = o.getObjectContent();
             FileOutputStream fos = new FileOutputStream(path);
-            byte[] read_buf = new byte[1024];
-            int read_len = 0;
-            while ((read_len = s3is.read(read_buf)) > 0) {
-                fos.write(read_buf, 0, read_len);
+            byte[] readBuf = new byte[1024];
+            int readLen;
+            while ((readLen = s3is.read(readBuf)) > 0) {
+                fos.write(readBuf, 0, readLen);
             }
             s3is.close();
             fos.close();
@@ -83,14 +92,42 @@ public class BotConfig {
             System.exit(1);
         }
 
-        MultiLayerNetwork model = null;
+        MultiLayerNetwork net = null;
         try {
-            model = MultiLayerNetwork.load(new File(path), true);
+            net = MultiLayerNetwork.load(new File(path), true);
+            logger.info("MultiLayerNetwork loaded from S3");
         } catch (IOException e) {
             logger.error(e.getMessage());
             System.exit(1);
         }
 
-        return model;
+        reloadFirstHour(exchange, net);
+
+        return net;
+    }
+
+    private void reloadFirstHour(Exchange exchange, MultiLayerNetwork net) throws IOException {
+        final long startDate = LocalDateTime.now(ZoneOffset.UTC)
+                .truncatedTo(ChronoUnit.MINUTES)
+                .minusHours(2)
+                .toEpochSecond(ZoneOffset.UTC);
+        final long endDate = LocalDateTime.now(ZoneOffset.UTC)
+                .toEpochSecond(ZoneOffset.UTC);
+
+        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
+
+        INDArray nextInput = Nd4j.zeros(1, 2, TRAIN_DEEP);
+
+        for (int y = TRAIN_DEEP - 1; y >= 0; y--) {
+            nextInput.putScalar(new int[]{0, 0, y},
+                    kucoinKlines.get(y).getClose()
+                            .subtract(kucoinKlines.get(y).getOpen())
+                            .floatValue());
+            nextInput.putScalar(new int[]{0, 1, y},
+                    kucoinKlines.get(y).getVolume()
+                            .floatValue());
+        }
+        net.rnnTimeStep(nextInput);
+        logger.info("First hour loaded to net");
     }
 }
