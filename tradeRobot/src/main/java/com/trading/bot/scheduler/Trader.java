@@ -17,8 +17,9 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
+import static com.trading.bot.configuration.BotConfig.CURRENCY_DELTA;
+import static com.trading.bot.configuration.BotConfig.INPUT_SIZE;
 import static com.trading.bot.util.TradeUtil.*;
 
 @Service
@@ -43,45 +44,32 @@ public class Trader {
     }
 
     @Scheduled(cron = "55 * * * * *")
-    public void trade() throws IOException, InterruptedException {
+    public void trade() throws IOException {
+        List<KucoinKline> kucoinKlines = getKlines();
+        KucoinKline lastKline0 = kucoinKlines.get(0);
+        KucoinKline lastKline1 = kucoinKlines.get(1);
+
+        float[] predict = getPredict(kucoinKlines);
+        String rates = printRates(predict);
 
         if (active) {
-            while (true) {
-                List<KucoinKline> kucoinKlines = getKlines();
-                KucoinKline lastKline0 = kucoinKlines.get(0);
-                KucoinKline lastKline1 = kucoinKlines.get(1);
-                BigDecimal curPrice = kucoinKlines.get(0).getClose();
-
-                float[] floatResult = getPredict(kucoinKlines);
-                String rates = printRates(floatResult);
-
-                if (lastKline0.getClose().compareTo(lastKline1.getOpen()) < 0
-                        && lastKline0.getClose().subtract(lastKline0.getOpen()).floatValue() < 0) {
-                    USDT = USDT.multiply(curPrice).divide(firstPrice, 2, RoundingMode.HALF_UP);
-                    logger.info("{} Sell crypto !!!!!!!! {} firstPrice {} newPrice {}", rates, USDT, firstPrice, curPrice);
-                    active = false;
-                    return;
-                } else {
-                    if (maxPrice.compareTo(curPrice) < 0) {
-                        maxPrice = curPrice;
-                    }
-                    logger.info("{} HOLD the crypto maxPrice {} curPrice {}", rates, maxPrice, curPrice);
+            if (lastKline0.getClose().compareTo(lastKline1.getOpen()) < 0 && predict[7] < 0.8                                                                         // Not predict
+                    || lastKline0.getOpen().subtract(lastKline0.getClose()).floatValue() > CURRENCY_DELTA) {    // Minus CURRENCY_DELTA
+                USDT = USDT.multiply(lastKline0.getClose()).divide(firstPrice, 2, RoundingMode.HALF_UP);
+                logger.info("{} SELL {} firstPrice {} newPrice {}", rates, USDT, firstPrice, lastKline0.getClose());
+                active = false;
+            } else {
+                if (maxPrice.compareTo(lastKline0.getClose()) < 0) {
+                    maxPrice = lastKline0.getClose();
                 }
-
-                TimeUnit.SECONDS.sleep(5);    // Cooling CPU
+                logger.info("{} HOLD maxPrice {} curPrice {}", rates, maxPrice, lastKline0.getClose());
             }
         } else {
-            List<KucoinKline> kucoinKlines = getKlines();
-            KucoinKline lastKline0 = kucoinKlines.get(0);
-
-            float[] floatResult = getPredict(kucoinKlines);
-            String rates = printRates(floatResult);
-
-            if (floatResult[7] > 0.5) {
+            if (predict[7] > 0.8) {
                 active = true;
                 firstPrice = lastKline0.getClose();
                 maxPrice = lastKline0.getClose();
-                logger.info("{} Buy crypto !!!!!!!! {} Price {}", rates, USDT, lastKline0.getClose());
+                logger.info("{} BUY {} Price {}", rates, USDT, lastKline0.getClose());
             } else {
                 logger.info("{}", rates);
             }
@@ -99,15 +87,16 @@ public class Trader {
     }
 
     private float[] getPredict(List<KucoinKline> kucoinKlines) {
-        try (INDArray nextInput = Nd4j.zeros(1, 2, 1)) {
+        try (INDArray nextInput = Nd4j.zeros(1, INPUT_SIZE, 1)) {
 
             nextInput.putScalar(new int[]{0, 0, 0},
-                    kucoinKlines.get(0).getClose()
-                            .subtract(kucoinKlines.get(0).getOpen())
-                            .floatValue());
+                    kucoinKlines.get(0).getClose().subtract(kucoinKlines.get(0).getOpen()).floatValue());
             nextInput.putScalar(new int[]{0, 1, 0},
-                    kucoinKlines.get(0).getVolume()
-                            .floatValue());
+                    kucoinKlines.get(0).getVolume().floatValue());
+            nextInput.putScalar(new int[]{0, 2, 0},
+                    kucoinKlines.get(0).getClose().compareTo(kucoinKlines.get(0).getOpen()) > 0 ?
+                            kucoinKlines.get(0).getOpen().subtract(kucoinKlines.get(0).getLow()).floatValue() :
+                            kucoinKlines.get(0).getClose().subtract(kucoinKlines.get(0).getLow()).floatValue());
 
             return model.rnnTimeStep(nextInput).ravel().toFloatVector();
         }

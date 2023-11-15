@@ -49,10 +49,10 @@ public class KlinesController {
 
         final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
 
-        float[][] floatData = new float[kucoinKlines.size() - TRAIN_DEEP - PREDICT_DEEP][TRAIN_DEEP];
-        int[][] intLabels = new int[kucoinKlines.size() - TRAIN_DEEP - PREDICT_DEEP][OUTPUT_SIZE];
-        for (int i = 0; i < kucoinKlines.size() - TRAIN_DEEP - PREDICT_DEEP; i++) {
-            for (int y = 0; y < TRAIN_DEEP; y++) {
+        float[][] floatData = new float[kucoinKlines.size() - TRAIN_MINUTES - PREDICT_DEEP][TRAIN_MINUTES];
+        int[][] intLabels = new int[kucoinKlines.size() - TRAIN_MINUTES - PREDICT_DEEP][OUTPUT_SIZE];
+        for (int i = 0; i < kucoinKlines.size() - TRAIN_MINUTES - PREDICT_DEEP; i++) {
+            for (int y = 0; y < TRAIN_MINUTES; y++) {
                 floatData[i][y] = calcData(kucoinKlines, i, y, PREDICT_DEEP);
             }
 
@@ -64,7 +64,7 @@ public class KlinesController {
         float[][] floatResult = model.output(indData).toFloatMatrix();
 
         List<String> listResult = new ArrayList<>();
-        for (int i = 0; i < kucoinKlines.size() - TRAIN_DEEP - PREDICT_DEEP; i++) {
+        for (int i = 0; i < kucoinKlines.size() - TRAIN_MINUTES - PREDICT_DEEP; i++) {
             if (floatResult[i][0] + floatResult[i][1] + floatResult[i][2] + floatResult[i][3] > 0.5) {
                 if (intLabels[i][0] + intLabels[i][1] + intLabels[i][2] + intLabels[i][3] > 0.5) {
                     goodSign++;

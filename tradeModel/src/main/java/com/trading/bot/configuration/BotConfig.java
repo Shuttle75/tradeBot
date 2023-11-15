@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -44,12 +43,14 @@ import static com.trading.bot.util.TradeUtil.*;
 @Configuration
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
-    public static final int INPUT_SIZE = 2;
+    public static final int INPUT_SIZE = 3;
     public static final int LAYER_SIZE = 128;
     public static final int OUTPUT_SIZE = 8;
-    public static final int TRAIN_HOURS = 72;
-    public static final int TRAIN_MINUTES = 60;
-    public static final int CURRENCY_DELTA = 20;
+    public static final int TRAIN_EXAMPLES = 120;
+    public static final int TRAIN_MINUTES = 24;
+    public static final int CURRENCY_DELTA = 10;
+    public static final int PREDICT_DEEP = 4;
+    public static final int NET_FIT_ITERATIONS = 1600;
 
     @Value("${model.bucket}")
     public String bucketName;
@@ -94,42 +95,39 @@ public class BotConfig {
 
     @Bean
     public MultiLayerNetwork getModel(Exchange exchange, MultiLayerConfiguration config) throws IOException {
-        LocalDateTime startDate = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.DAYS);
-        LocalDateTime endDate = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.DAYS).plusDays(1);
-        final List<KucoinKline> kucoinKlines = new ArrayList<>();
+        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
 
-        for (long i = 0; i < 4; i++) {
-            kucoinKlines.addAll(
-                    getKucoinKlines(
-                            exchange,
-                            startDate.minusDays(i).toEpochSecond(ZoneOffset.UTC),
-                            endDate.minusDays(i).toEpochSecond(ZoneOffset.UTC)));
-        }
+        MultiLayerNetwork net = new MultiLayerNetwork(config);
+        net.init();
+        net.setListeners(new ScoreIterationListener(100));
 
-        Collections.reverse(kucoinKlines);
+        try (INDArray indData = Nd4j.zeros(TRAIN_EXAMPLES, INPUT_SIZE, TRAIN_MINUTES);
+             INDArray indLabels = Nd4j.zeros(TRAIN_EXAMPLES, OUTPUT_SIZE, TRAIN_MINUTES)) {
 
-        //run the model
-        MultiLayerNetwork model = new MultiLayerNetwork(config);
-        model.init();
-        //record score once every 100 iterations
-        model.setListeners(new ScoreIterationListener(100));
+            for (int i = 0; i < TRAIN_EXAMPLES ; i++) {
+                List<KucoinKline> kucoinKlines =
+                        getKucoinKlines(
+                                exchange,
+                                now.minusMinutes(i * (long) TRAIN_MINUTES + TRAIN_MINUTES + PREDICT_DEEP).toEpochSecond(ZoneOffset.UTC),
+                                now.minusMinutes(i * (long) TRAIN_MINUTES).toEpochSecond(ZoneOffset.UTC));
+                Collections.reverse(kucoinKlines);
 
-        try (INDArray indData = Nd4j.zeros(TRAIN_HOURS, 2, TRAIN_MINUTES);
-             INDArray indLabels = Nd4j.zeros(TRAIN_HOURS, OUTPUT_SIZE, TRAIN_MINUTES)) {
-
-            for (int i = 0; i < TRAIN_HOURS ; i++) {
                 for (int y = 0; y < TRAIN_MINUTES; y++) {
                     indData.putScalar(new int[]{i, 0, y},
-                            kucoinKlines.get(i * TRAIN_HOURS + y).getClose()
-                                    .subtract(kucoinKlines.get(i * TRAIN_HOURS + y).getOpen()).floatValue());
+                            kucoinKlines.get(y).getClose()
+                                    .subtract(kucoinKlines.get(y).getOpen()).floatValue());
                     indData.putScalar(new int[]{i, 1, y},
-                            kucoinKlines.get(i * TRAIN_HOURS + y).getVolume().floatValue());
-                    indLabels.putScalar(new int[]{i, getDelta(kucoinKlines, i * TRAIN_HOURS + y), y}, 1);
+                            kucoinKlines.get(y).getVolume().floatValue());
+                    indData.putScalar(new int[]{i, 2, y},
+                            kucoinKlines.get(y).getClose().compareTo(kucoinKlines.get(y).getOpen()) > 0 ?
+                                    kucoinKlines.get(y).getOpen().subtract(kucoinKlines.get(y).getLow()).floatValue() :
+                                    kucoinKlines.get(y).getClose().subtract(kucoinKlines.get(y).getLow()).floatValue());
+                    indLabels.putScalar(new int[]{i, getDelta(kucoinKlines, y), y}, 1);
                 }
             }
 
-            for (int i = 0; i < 1000; i++) {
-                model.fit(indData, indLabels);
+            for (int i = 0; i < NET_FIT_ITERATIONS; i++) {
+                net.fit(indData, indLabels);
             }
         }
 
@@ -139,13 +137,13 @@ public class BotConfig {
             String fileName = CURRENCY_PAIR.base + ".zip";
             String path = FilenameUtils.concat(
                     System.getProperty("java.io.tmpdir"), fileName);
-            model.save(new File(path));
+            net.save(new File(path));
 
             s3.putObject(bucketName, fileName, new File(path));
         } catch (AmazonServiceException e) {
             logger.error(e.getErrorMessage());
         }
 
-        return model;
+        return net;
     }
 }

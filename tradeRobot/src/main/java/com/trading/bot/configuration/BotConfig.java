@@ -36,10 +36,11 @@ import static com.trading.bot.util.TradeUtil.getKucoinKlines;
 @Configuration
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
+    public static final int INPUT_SIZE = 3;
     public static final int OUTPUT_SIZE = 8;
-    public static final int TRAIN_DEEP = 60;
+    public static final int TRAIN_MINUTES = 24;
     public static final int PREDICT_DEEP = 2;
-    public static final int CURRENCY_DELTA = 20;
+    public static final int CURRENCY_DELTA = 10;
 
     @Value("${model.bucket}")
     public String bucketName;
@@ -109,8 +110,7 @@ public class BotConfig {
 
     private void reloadFirstHour(Exchange exchange, MultiLayerNetwork net) throws IOException {
         final long startDate = LocalDateTime.now(ZoneOffset.UTC)
-                .truncatedTo(ChronoUnit.MINUTES)
-                .minusHours(2)
+                .minusMinutes(TRAIN_MINUTES)
                 .toEpochSecond(ZoneOffset.UTC);
         final long endDate = LocalDateTime.now(ZoneOffset.UTC)
                 .toEpochSecond(ZoneOffset.UTC);
@@ -119,13 +119,16 @@ public class BotConfig {
 
         Collections.reverse(kucoinKlines);
 
-        INDArray nextInput = Nd4j.zeros(1, 2, TRAIN_DEEP);
-        for (int y = 0; y < TRAIN_DEEP; y++) {
+        INDArray nextInput = Nd4j.zeros(1, INPUT_SIZE, TRAIN_MINUTES);
+        for (int y = 0; y < TRAIN_MINUTES; y++) {
             nextInput.putScalar(new int[]{0, 0, y},
-                    kucoinKlines.get(y).getClose()
-                            .subtract(kucoinKlines.get(y).getOpen()).floatValue());
+                    kucoinKlines.get(y).getClose().subtract(kucoinKlines.get(y).getOpen()).floatValue());
             nextInput.putScalar(new int[]{0, 1, y},
                     kucoinKlines.get(y).getVolume().floatValue());
+            nextInput.putScalar(new int[]{0, 2, y},
+                    kucoinKlines.get(y).getClose().compareTo(kucoinKlines.get(y).getOpen()) > 0 ?
+                            kucoinKlines.get(y).getOpen().subtract(kucoinKlines.get(y).getLow()).floatValue() :
+                            kucoinKlines.get(y).getClose().subtract(kucoinKlines.get(y).getLow()).floatValue());
         }
         net.rnnTimeStep(nextInput);
         logger.info("First hour loaded to MultiLayerNetwork");
