@@ -37,8 +37,8 @@ public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int INPUT_SIZE = 2;
     public static final int OUTPUT_SIZE = 5;
-    public static final int TRAIN_MINUTES = 480;
-    public static final int PREDICT_DEEP = 1;
+    public static final int TRAIN_MINUTES = 180;
+    public static final int PREDICT_DEEP = 2;
     public static final int CURRENCY_DELTA = 10;
 
     @Value("${model.bucket}")

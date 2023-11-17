@@ -5,7 +5,6 @@ import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import org.apache.commons.io.FilenameUtils;
-import org.deeplearning4j.nn.conf.BackpropType;
 import org.deeplearning4j.nn.conf.GradientNormalization;
 import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
@@ -46,11 +45,11 @@ public class BotConfig {
     public static final int INPUT_SIZE = 2;
     public static final int LAYER_SIZE = 512;
     public static final int OUTPUT_SIZE = 5;
-    public static final int TRAIN_EXAMPLES = 1;
-    public static final int TRAIN_MINUTES = 120;
-    public static final int PREDICT_DEEP = 1;
+    public static final int TRAIN_EXAMPLES = 4;
+    public static final int TRAIN_MINUTES = 180;
+    public static final int PREDICT_DEEP = 2;
     public static final int CURRENCY_DELTA = 10;
-    public static final int NET_FIT_ITERATIONS = 800;
+    public static final int NET_FIT_ITERATIONS = 2400;
 
 
     @Value("${model.bucket}")
@@ -105,22 +104,31 @@ public class BotConfig {
         try (INDArray indData = Nd4j.zeros(TRAIN_EXAMPLES, INPUT_SIZE, TRAIN_MINUTES);
              INDArray indLabels = Nd4j.zeros(TRAIN_EXAMPLES, OUTPUT_SIZE, TRAIN_MINUTES)) {
 
-            for (int i = 0; i < TRAIN_EXAMPLES ; i++) {
+            int iQuery = 0;
+            int iTrain = 0;
+            while (iTrain < TRAIN_EXAMPLES) {
                 List<KucoinKline> kucoinKlines =
                         getKucoinKlines(
                                 exchange,
-                                now.minusHours(i * (long) TRAIN_MINUTES + TRAIN_MINUTES + PREDICT_DEEP).toEpochSecond(ZoneOffset.UTC),
-                                now.minusMinutes(i * (long) TRAIN_MINUTES).toEpochSecond(ZoneOffset.UTC));
+                                now.minusMinutes(iQuery * (long) TRAIN_MINUTES + TRAIN_MINUTES + PREDICT_DEEP).toEpochSecond(ZoneOffset.UTC),
+                                now.minusMinutes(iQuery * (long) TRAIN_MINUTES).toEpochSecond(ZoneOffset.UTC));
                 Collections.reverse(kucoinKlines);
+                iQuery++;
+
+                if (kucoinKlines.get(0).getOpen()
+                        .subtract(kucoinKlines.get(kucoinKlines.size() - 1).getClose()).floatValue() > CURRENCY_DELTA * 10F) {
+                    continue;
+                }
 
                 for (int y = 0; y < TRAIN_MINUTES; y++) {
-                    indData.putScalar(new int[]{i, 0, y},
+                    indData.putScalar(new int[]{iTrain, 0, y},
                             kucoinKlines.get(y).getClose()
                                     .subtract(kucoinKlines.get(y).getOpen()).movePointLeft(2).floatValue());
-                    indData.putScalar(new int[]{i, 1, y},
+                    indData.putScalar(new int[]{iTrain, 1, y},
                             kucoinKlines.get(y).getVolume().movePointLeft(2).floatValue());
-                    indLabels.putScalar(new int[]{i, getDelta(kucoinKlines, y), y}, 1);
+                    indLabels.putScalar(new int[]{iTrain, getDelta(kucoinKlines, y), y}, 1);
                 }
+                iTrain++;
             }
 
             for (int i = 0; i < NET_FIT_ITERATIONS; i++) {

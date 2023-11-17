@@ -5,19 +5,16 @@ import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.kucoin.KucoinMarketDataService;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 
-import javax.ws.rs.NotSupportedException;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.*;
-import java.util.function.BiConsumer;
-import java.util.function.BinaryOperator;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.stream.Collector;
 
 import static com.trading.bot.configuration.BotConfig.*;
 import static java.lang.Math.round;
 import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min1;
+import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min30;
 
 public class TradeUtil {
 
@@ -32,6 +29,18 @@ public class TradeUtil {
     public static List<KucoinKline> getKucoinKlines(Exchange exchange, long startDate, long endDate) throws IOException {
         return ((KucoinMarketDataService) exchange.getMarketDataService())
                 .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min1);
+    }
+
+    public static boolean isGoodTrend(Exchange exchange) throws IOException {
+        final long startDate = LocalDateTime.now(ZoneOffset.UTC)
+                .minusMinutes(30)
+                .toEpochSecond(ZoneOffset.UTC);
+
+        KucoinKline kucoinKline = ((KucoinMarketDataService) exchange.getMarketDataService())
+                .getKucoinKlines(CURRENCY_PAIR, startDate, 0L, min30)
+                .get(0);
+
+        return kucoinKline.getOpen().subtract(kucoinKline.getClose()).floatValue() < CURRENCY_DELTA * 2F;
     }
 
     public static int getDelta(List<KucoinKline> kucoinKlines, int pos) {

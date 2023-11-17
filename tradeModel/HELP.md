@@ -20,6 +20,6 @@ The following guides illustrate how to use some features concretely:
 * [Building REST services with Spring](https://spring.io/guides/tutorials/rest/)
 * [Accessing Data with JPA](https://spring.io/guides/gs/accessing-data-jpa/)
 
-aws s3 cp s3://trade-crypto-releases/tradeModel-0.0.1-SNAPSHOT.jar /home/ec2-user/tradeModel-0.0.1-SNAPSHOT.jar
+aws s3 cp s3://trade-crypto-releases/tradeModel-0.0.1-SNAPSHOT.jar tradeModel-0.0.1-SNAPSHOT.jar
 sudo yum install java-11-amazon-corretto --assumeyes
 sudo java -jar --illegal-access=deny tradeModel-0.0.1-SNAPSHOT.jar
