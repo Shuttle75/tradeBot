@@ -40,7 +40,7 @@ public class TradeUtil {
                 .getKucoinKlines(CURRENCY_PAIR, startDate, 0L, min30)
                 .get(0);
 
-        return kucoinKline.getOpen().subtract(kucoinKline.getClose()).floatValue() < CURRENCY_DELTA * 2F;
+        return kucoinKline.getOpen().compareTo(kucoinKline.getClose()) < 0;
     }
 
     public static int getDelta(List<KucoinKline> kucoinKlines, int pos) {

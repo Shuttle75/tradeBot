@@ -37,9 +37,10 @@ public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int INPUT_SIZE = 2;
     public static final int OUTPUT_SIZE = 5;
-    public static final int TRAIN_MINUTES = 180;
+    public static final int TRAIN_MINUTES = 60;
     public static final int PREDICT_DEEP = 2;
-    public static final int CURRENCY_DELTA = 10;
+    public static final int CURRENCY_DELTA = 20;
+    public static final int NORMAL = 3;
 
     @Value("${model.bucket}")
     public String bucketName;
@@ -118,9 +119,9 @@ public class BotConfig {
         for (int y = 0; y < TRAIN_MINUTES; y++) {
             nextInput.putScalar(new int[]{0, 0, y},
                     kucoinKlines.get(y).getClose()
-                            .subtract(kucoinKlines.get(y).getOpen()).movePointLeft(2).floatValue());
+                            .subtract(kucoinKlines.get(y).getOpen()).movePointLeft(NORMAL).floatValue());
             nextInput.putScalar(new int[]{0, 1, y},
-                    kucoinKlines.get(y).getVolume().movePointLeft(2).floatValue());
+                    kucoinKlines.get(y).getVolume().movePointLeft(NORMAL).floatValue());
         }
         net.rnnClearPreviousState();
         net.rnnTimeStep(nextInput);

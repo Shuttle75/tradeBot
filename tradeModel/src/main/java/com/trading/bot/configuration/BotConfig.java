@@ -43,13 +43,14 @@ import static com.trading.bot.util.TradeUtil.*;
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int INPUT_SIZE = 2;
-    public static final int LAYER_SIZE = 512;
+    public static final int LAYER_SIZE = 128;
     public static final int OUTPUT_SIZE = 5;
     public static final int TRAIN_EXAMPLES = 4;
-    public static final int TRAIN_MINUTES = 180;
+    public static final int TRAIN_MINUTES = 120;
     public static final int PREDICT_DEEP = 2;
-    public static final int CURRENCY_DELTA = 10;
-    public static final int NET_FIT_ITERATIONS = 2400;
+    public static final int CURRENCY_DELTA = 20;
+    public static final int NET_FIT_ITERATIONS = 4000;
+    public static final int NORMAL = 3;
 
 
     @Value("${model.bucket}")
@@ -87,9 +88,11 @@ public class BotConfig {
                 .gradientNormalizationThreshold(0.5)
                 .list()
                 .layer(new LSTM.Builder()
-                        .activation(Activation.TANH).nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
+                        .activation(Activation.TANH)
+                        .nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
                 .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
-                        .activation(Activation.SOFTMAX).nIn(LAYER_SIZE).nOut(OUTPUT_SIZE).build())
+                        .activation(Activation.SOFTMAX).dropOut(0.3)
+                        .nIn(LAYER_SIZE).nOut(OUTPUT_SIZE).build())
                 .build();
     }
 
@@ -115,17 +118,16 @@ public class BotConfig {
                 Collections.reverse(kucoinKlines);
                 iQuery++;
 
-                if (kucoinKlines.get(0).getOpen()
-                        .subtract(kucoinKlines.get(kucoinKlines.size() - 1).getClose()).floatValue() > CURRENCY_DELTA * 10F) {
+                if (kucoinKlines.get(0).getClose().compareTo(kucoinKlines.get(kucoinKlines.size() - 1).getClose()) < 0) {
                     continue;
                 }
 
                 for (int y = 0; y < TRAIN_MINUTES; y++) {
                     indData.putScalar(new int[]{iTrain, 0, y},
                             kucoinKlines.get(y).getClose()
-                                    .subtract(kucoinKlines.get(y).getOpen()).movePointLeft(2).floatValue());
+                                    .subtract(kucoinKlines.get(y).getOpen()).movePointLeft(NORMAL).floatValue());
                     indData.putScalar(new int[]{iTrain, 1, y},
-                            kucoinKlines.get(y).getVolume().movePointLeft(2).floatValue());
+                            kucoinKlines.get(y).getVolume().movePointLeft(NORMAL).floatValue());
                     indLabels.putScalar(new int[]{iTrain, getDelta(kucoinKlines, y), y}, 1);
                 }
                 iTrain++;

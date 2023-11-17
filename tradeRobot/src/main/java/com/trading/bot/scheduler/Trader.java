@@ -91,9 +91,9 @@ public class Trader {
 
             nextInput.putScalar(new int[]{0, 0, 0},
                     kucoinKline.getClose()
-                            .subtract(kucoinKline.getOpen()).movePointLeft(2).floatValue());
+                            .subtract(kucoinKline.getOpen()).movePointLeft(NORMAL).floatValue());
             nextInput.putScalar(new int[]{0, 1, 0},
-                    kucoinKline.getVolume().movePointLeft(2).floatValue());
+                    kucoinKline.getVolume().movePointLeft(NORMAL).floatValue());
 
             return model.rnnTimeStep(nextInput).ravel().toFloatVector();
         }
