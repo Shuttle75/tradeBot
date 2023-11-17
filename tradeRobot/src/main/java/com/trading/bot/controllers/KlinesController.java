@@ -1,5 +1,6 @@
 package com.trading.bot.controllers;
 
+import com.trading.bot.scheduler.Trader;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
@@ -15,6 +16,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static com.trading.bot.configuration.BotConfig.*;
@@ -26,10 +28,12 @@ public class KlinesController {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     private final Exchange exchange;
     private final MultiLayerNetwork model;
+    private final Trader trader;
 
-    public KlinesController(Exchange exchange, MultiLayerNetwork model) {
+    public KlinesController(Exchange exchange, MultiLayerNetwork model, Trader trader) {
         this.exchange = exchange;
         this.model = model;
+        this.trader = trader;
     }
 
     @GetMapping(path = "predict")
@@ -40,78 +44,62 @@ public class KlinesController {
         int wrongSign = 0;
         final long startDate = LocalDateTime.now(ZoneOffset.UTC)
                 .truncatedTo(ChronoUnit.DAYS)
-                .minusDays(2)
+                .minusMinutes(600)
                 .toEpochSecond(ZoneOffset.UTC);
         final long endDate = LocalDateTime.now(ZoneOffset.UTC)
                 .truncatedTo(ChronoUnit.DAYS)
-                .minusDays(1)
+                .minusMinutes(0)
                 .toEpochSecond(ZoneOffset.UTC);
 
         final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
-
-        float[][] floatData = new float[kucoinKlines.size() - TRAIN_MINUTES - PREDICT_DEEP][TRAIN_MINUTES];
-        int[][] intLabels = new int[kucoinKlines.size() - TRAIN_MINUTES - PREDICT_DEEP][OUTPUT_SIZE];
-        for (int i = 0; i < kucoinKlines.size() - TRAIN_MINUTES - PREDICT_DEEP; i++) {
-            for (int y = 0; y < TRAIN_MINUTES; y++) {
-                floatData[i][y] = calcData(kucoinKlines, i, y, PREDICT_DEEP);
-            }
-
-            intLabels[i][getDelta(kucoinKlines, i)] = 1;
-        }
-
-        INDArray indData = Nd4j.create(floatData);
-
-        float[][] floatResult = model.output(indData).toFloatMatrix();
+        Collections.reverse(kucoinKlines);
 
         List<String> listResult = new ArrayList<>();
         for (int i = 0; i < kucoinKlines.size() - TRAIN_MINUTES - PREDICT_DEEP; i++) {
-            if (floatResult[i][0] + floatResult[i][1] + floatResult[i][2] + floatResult[i][3] > 0.5) {
-                if (intLabels[i][0] + intLabels[i][1] + intLabels[i][2] + intLabels[i][3] > 0.5) {
+            float[] floatResult = trader.getOneMinutePredict(kucoinKlines.get(i));
+            int[] intLabels = new int[OUTPUT_SIZE];
+            intLabels[getDelta(kucoinKlines, i)] = 1;
+            if (floatResult[0] + floatResult[1] > 0.4) {
+                if (intLabels[0] + intLabels[1] > 0.4) {
                     goodSign++;
                 } else {
                     wrongSign++;
                 }
             }
-            if (floatResult[i][4] + floatResult[i][5] + floatResult[i][6] + floatResult[i][7] > 0.5) {
-                if (intLabels[i][4] + intLabels[i][5] + intLabels[i][6] + intLabels[i][7] > 0.5) {
+            if (floatResult[3] + floatResult[4] > 0.4) {
+                if (intLabels[3] + intLabels[4] > 0.4) {
                     goodSign++;
                 } else {
                     wrongSign++;
                 }
             }
 
-            if (floatResult[i][0] + floatResult[i][1] > 0.8) {
-                if (intLabels[i][0] + intLabels[i][1] > 0.8) {
+            if (floatResult[0] > 0.8) {
+                if (intLabels[0] > 0.8) {
                     goodMark++;
                 } else {
                     wrongMark++;
                 }
             }
-            if (floatResult[i][6] + floatResult[i][7] > 0.8) {
-                if (intLabels[i][6] + intLabels[i][7] > 0.8) {
+            if (floatResult[4] > 0.8) {
+                if (intLabels[4] > 0.8) {
                     goodMark++;
                 } else {
                     wrongMark++;
                 }
             }
 
-            if (floatResult[i][0] > 0.8 || floatResult[i][7] > 0.8) {
-                listResult.add(intLabels[i][0] + "    " +
-                        intLabels[i][1] + "    " +
-                        intLabels[i][2] + "    " +
-                        intLabels[i][3] + "  |   " +
-                        intLabels[i][4] + "    " +
-                        intLabels[i][5] + "    " +
-                        intLabels[i][6] + "    " +
-                        intLabels[i][7] + "   ");
-                listResult.add(String.format("%.2f", floatResult[i][0]) + " " +
-                        String.format("%.2f", floatResult[i][1]) + " " +
-                        String.format("%.2f", floatResult[i][2]) + " " +
-                        String.format("%.2f", floatResult[i][3]) + " | " +
-                        String.format("%.2f", floatResult[i][4]) + " " +
-                        String.format("%.2f", floatResult[i][5]) + " " +
-                        String.format("%.2f", floatResult[i][6]) + " " +
-                        String.format("%.2f", floatResult[i][7]));
+            if (floatResult[0] > 0.8 || floatResult[4] > 0.8) {
+                listResult.add(intLabels[0] + "    " +
+                        intLabels[1] + "    " +
+                        intLabels[2] + "    " +
+                        intLabels[3] + "    " +
+                        intLabels[4] + "    ");
+                listResult.add(String.format("%.2f", floatResult[0]) + " " +
+                        String.format("%.2f", floatResult[1]) + " " +
+                        String.format("%.2f", floatResult[2]) + " " +
+                        String.format("%.2f", floatResult[3]) + " " +
+                        String.format("%.2f", floatResult[4]));
                 listResult.add("-----------------------------------------");
             }
         }

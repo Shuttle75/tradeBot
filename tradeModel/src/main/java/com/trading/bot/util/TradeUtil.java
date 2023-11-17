@@ -38,7 +38,7 @@ public class TradeUtil {
         BigDecimal data = kucoinKlines.get(pos + PREDICT_DEEP).getClose()
                 .subtract(kucoinKlines.get(pos).getClose());
 
-        int delta = round((data.floatValue() + CURRENCY_DELTA * 3.5F) / CURRENCY_DELTA);
+        int delta = round((data.floatValue() + CURRENCY_DELTA * 2) / CURRENCY_DELTA);
 
         delta = Math.max(delta, 0);
         delta = Math.min(delta, OUTPUT_SIZE - 1);

@@ -18,8 +18,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 
-import static com.trading.bot.configuration.BotConfig.CURRENCY_DELTA;
-import static com.trading.bot.configuration.BotConfig.INPUT_SIZE;
+import static com.trading.bot.configuration.BotConfig.*;
 import static com.trading.bot.util.TradeUtil.*;
 
 @Service
@@ -49,12 +48,16 @@ public class Trader {
         KucoinKline lastKline0 = kucoinKlines.get(0);
         KucoinKline lastKline1 = kucoinKlines.get(1);
 
-        float[] predict = getPredict(kucoinKlines);
+        float[] predict = getOneMinutePredict(kucoinKlines.get(0));
         String rates = printRates(predict);
 
+        boolean downNoLessThenPrev = lastKline0.getClose().compareTo(lastKline1.getOpen()) < 0;
+        boolean downNoLessThenDelta = lastKline0.getOpen().subtract(lastKline0.getClose()).floatValue() > CURRENCY_DELTA;
+        boolean notGreen = lastKline0.getClose().compareTo(lastKline0.getOpen()) < 0;
+        boolean isGreen = lastKline0.getClose().compareTo(lastKline0.getOpen()) > 0;
+
         if (active) {
-            if (lastKline0.getClose().compareTo(lastKline1.getOpen()) < 0 && predict[7] < 0.8                                                                         // Not predict
-                    || lastKline0.getOpen().subtract(lastKline0.getClose()).floatValue() > CURRENCY_DELTA) {    // Minus CURRENCY_DELTA
+            if ((downNoLessThenPrev || downNoLessThenDelta) && predict[OUTPUT_SIZE - 1] < 0.7 && notGreen) {
                 USDT = USDT.multiply(lastKline0.getClose()).divide(firstPrice, 2, RoundingMode.HALF_UP);
                 logger.info("{} SELL {} firstPrice {} newPrice {}", rates, USDT, firstPrice, lastKline0.getClose());
                 active = false;
@@ -65,7 +68,7 @@ public class Trader {
                 logger.info("{} HOLD maxPrice {} curPrice {}", rates, maxPrice, lastKline0.getClose());
             }
         } else {
-            if (predict[7] > 0.8) {
+            if (predict[OUTPUT_SIZE - 1] > 0.7) {
                 active = true;
                 firstPrice = lastKline0.getClose();
                 maxPrice = lastKline0.getClose();
@@ -86,17 +89,14 @@ public class Trader {
         return getKucoinKlines(exchange, startDate, endDate);
     }
 
-    private float[] getPredict(List<KucoinKline> kucoinKlines) {
+    public float[] getOneMinutePredict(KucoinKline kucoinKline) {
         try (INDArray nextInput = Nd4j.zeros(1, INPUT_SIZE, 1)) {
 
             nextInput.putScalar(new int[]{0, 0, 0},
-                    kucoinKlines.get(0).getClose().subtract(kucoinKlines.get(0).getOpen()).floatValue());
+                    kucoinKline.getClose()
+                            .subtract(kucoinKline.getOpen()).movePointLeft(2).floatValue());
             nextInput.putScalar(new int[]{0, 1, 0},
-                    kucoinKlines.get(0).getVolume().floatValue());
-            nextInput.putScalar(new int[]{0, 2, 0},
-                    kucoinKlines.get(0).getClose().compareTo(kucoinKlines.get(0).getOpen()) > 0 ?
-                            kucoinKlines.get(0).getOpen().subtract(kucoinKlines.get(0).getLow()).floatValue() :
-                            kucoinKlines.get(0).getClose().subtract(kucoinKlines.get(0).getLow()).floatValue());
+                    kucoinKline.getVolume().movePointLeft(2).floatValue());
 
             return model.rnnTimeStep(nextInput).ravel().toFloatVector();
         }

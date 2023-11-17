@@ -5,6 +5,7 @@ import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import org.apache.commons.io.FilenameUtils;
+import org.deeplearning4j.nn.conf.BackpropType;
 import org.deeplearning4j.nn.conf.GradientNormalization;
 import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
@@ -42,14 +43,15 @@ import static com.trading.bot.util.TradeUtil.*;
 @Configuration
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
-    public static final int INPUT_SIZE = 3;
-    public static final int LAYER_SIZE = 128;
-    public static final int OUTPUT_SIZE = 8;
-    public static final int TRAIN_EXAMPLES = 120;
-    public static final int TRAIN_MINUTES = 24;
+    public static final int INPUT_SIZE = 2;
+    public static final int LAYER_SIZE = 512;
+    public static final int OUTPUT_SIZE = 5;
+    public static final int TRAIN_EXAMPLES = 1;
+    public static final int TRAIN_MINUTES = 120;
+    public static final int PREDICT_DEEP = 1;
     public static final int CURRENCY_DELTA = 10;
-    public static final int PREDICT_DEEP = 4;
-    public static final int NET_FIT_ITERATIONS = 1600;
+    public static final int NET_FIT_ITERATIONS = 800;
+
 
     @Value("${model.bucket}")
     public String bucketName;
@@ -107,20 +109,16 @@ public class BotConfig {
                 List<KucoinKline> kucoinKlines =
                         getKucoinKlines(
                                 exchange,
-                                now.minusMinutes(i * (long) TRAIN_MINUTES + TRAIN_MINUTES + PREDICT_DEEP).toEpochSecond(ZoneOffset.UTC),
+                                now.minusHours(i * (long) TRAIN_MINUTES + TRAIN_MINUTES + PREDICT_DEEP).toEpochSecond(ZoneOffset.UTC),
                                 now.minusMinutes(i * (long) TRAIN_MINUTES).toEpochSecond(ZoneOffset.UTC));
                 Collections.reverse(kucoinKlines);
 
                 for (int y = 0; y < TRAIN_MINUTES; y++) {
                     indData.putScalar(new int[]{i, 0, y},
                             kucoinKlines.get(y).getClose()
-                                    .subtract(kucoinKlines.get(y).getOpen()).floatValue());
+                                    .subtract(kucoinKlines.get(y).getOpen()).movePointLeft(2).floatValue());
                     indData.putScalar(new int[]{i, 1, y},
-                            kucoinKlines.get(y).getVolume().floatValue());
-                    indData.putScalar(new int[]{i, 2, y},
-                            kucoinKlines.get(y).getClose().compareTo(kucoinKlines.get(y).getOpen()) > 0 ?
-                                    kucoinKlines.get(y).getOpen().subtract(kucoinKlines.get(y).getLow()).floatValue() :
-                                    kucoinKlines.get(y).getClose().subtract(kucoinKlines.get(y).getLow()).floatValue());
+                            kucoinKlines.get(y).getVolume().movePointLeft(2).floatValue());
                     indLabels.putScalar(new int[]{i, getDelta(kucoinKlines, y), y}, 1);
                 }
             }

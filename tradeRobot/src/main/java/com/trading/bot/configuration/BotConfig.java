@@ -27,7 +27,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 
@@ -36,10 +35,10 @@ import static com.trading.bot.util.TradeUtil.getKucoinKlines;
 @Configuration
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
-    public static final int INPUT_SIZE = 3;
-    public static final int OUTPUT_SIZE = 8;
-    public static final int TRAIN_MINUTES = 24;
-    public static final int PREDICT_DEEP = 2;
+    public static final int INPUT_SIZE = 2;
+    public static final int OUTPUT_SIZE = 5;
+    public static final int TRAIN_MINUTES = 480;
+    public static final int PREDICT_DEEP = 1;
     public static final int CURRENCY_DELTA = 10;
 
     @Value("${model.bucket}")
@@ -109,27 +108,21 @@ public class BotConfig {
     }
 
     private void reloadFirstHour(Exchange exchange, MultiLayerNetwork net) throws IOException {
-        final long startDate = LocalDateTime.now(ZoneOffset.UTC)
-                .minusMinutes(TRAIN_MINUTES)
-                .toEpochSecond(ZoneOffset.UTC);
-        final long endDate = LocalDateTime.now(ZoneOffset.UTC)
-                .toEpochSecond(ZoneOffset.UTC);
+        final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(TRAIN_MINUTES).toEpochSecond(ZoneOffset.UTC);
+        final long endDate = LocalDateTime.now(ZoneOffset.UTC).toEpochSecond(ZoneOffset.UTC);
 
         List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
-
         Collections.reverse(kucoinKlines);
 
         INDArray nextInput = Nd4j.zeros(1, INPUT_SIZE, TRAIN_MINUTES);
         for (int y = 0; y < TRAIN_MINUTES; y++) {
             nextInput.putScalar(new int[]{0, 0, y},
-                    kucoinKlines.get(y).getClose().subtract(kucoinKlines.get(y).getOpen()).floatValue());
+                    kucoinKlines.get(y).getClose()
+                            .subtract(kucoinKlines.get(y).getOpen()).movePointLeft(2).floatValue());
             nextInput.putScalar(new int[]{0, 1, y},
-                    kucoinKlines.get(y).getVolume().floatValue());
-            nextInput.putScalar(new int[]{0, 2, y},
-                    kucoinKlines.get(y).getClose().compareTo(kucoinKlines.get(y).getOpen()) > 0 ?
-                            kucoinKlines.get(y).getOpen().subtract(kucoinKlines.get(y).getLow()).floatValue() :
-                            kucoinKlines.get(y).getClose().subtract(kucoinKlines.get(y).getLow()).floatValue());
+                    kucoinKlines.get(y).getVolume().movePointLeft(2).floatValue());
         }
+        net.rnnClearPreviousState();
         net.rnnTimeStep(nextInput);
         logger.info("First hour loaded to MultiLayerNetwork");
     }
