@@ -1,14 +1,17 @@
 package com.trading.bot.util;
 
+import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.knowm.xchange.Exchange;
-import org.knowm.xchange.dto.marketdata.Ticker;
 import org.knowm.xchange.kucoin.KucoinMarketDataService;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.factory.Nd4j;
 
 import javax.ws.rs.NotSupportedException;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
@@ -25,16 +28,31 @@ public class TradeUtil {
     private TradeUtil() {
     }
 
-    public static Ticker getTicker(Exchange exchange) throws IOException {
-        return ((KucoinMarketDataService) exchange.getMarketDataService())
-                .getTicker(CURRENCY_PAIR);
-    }
-
-    public static List<KucoinKline> getKucoinKlines(Exchange exchange, long startDate, long endDate) throws IOException {
+    public static List<KucoinKline> getAggregatedKucoinKlinesByMin(Exchange exchange, long startDate, long endDate) throws IOException {
         return ((KucoinMarketDataService) exchange.getMarketDataService())
                 .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min1)
                 .stream()
                 .collect(reduceKucoinKlines());
+    }
+
+    public static float[] getOneMinutePredict(KucoinKline kucoinKline, MultiLayerNetwork net) {
+        try (INDArray nextInput = Nd4j.zeros(1, INPUT_SIZE, 1)) {
+
+            nextInput.putScalar(new int[]{0, 0, 0},
+                    kucoinKline.getClose()
+                            .subtract(kucoinKline.getOpen()).movePointLeft(NORMAL).floatValue());
+            nextInput.putScalar(new int[]{0, 1, 0},
+                    kucoinKline.getVolume().movePointLeft(NORMAL).floatValue());
+
+            return net.rnnTimeStep(nextInput).ravel().toFloatVector();
+        }
+    }
+
+    public static KucoinKline getLastKucoinKlinesByMin(Exchange exchange) throws IOException {
+        final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(2).toEpochSecond(ZoneOffset.UTC);
+        return ((KucoinMarketDataService) exchange.getMarketDataService())
+                .getKucoinKlines(CURRENCY_PAIR, startDate, 0L, min1)
+                .get(0);
     }
 
     public static int getDelta(List<KucoinKline> kucoinKlines, int pos) {

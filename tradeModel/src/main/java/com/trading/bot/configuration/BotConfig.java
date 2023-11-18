@@ -118,7 +118,7 @@ public class BotConfig {
                 LocalDateTime endDate = now.minusMinutes(iQuery * (long) TRAIN_MINUTES);
 
                 List<KucoinKline> kucoinKlines =
-                        getKucoinKlines(
+                        getAggregatedKucoinKlinesByMin(
                                 exchange,
                                 startDate.toEpochSecond(ZoneOffset.UTC),
                                 endDate.toEpochSecond(ZoneOffset.UTC));
@@ -140,7 +140,6 @@ public class BotConfig {
                 }
             }
         }
-
 
         try {
             String fileName = CURRENCY_PAIR.base + ".zip";

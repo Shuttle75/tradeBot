@@ -1,11 +1,8 @@
 package com.trading.bot.controllers;
 
-import com.trading.bot.scheduler.Trader;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
-import org.nd4j.linalg.api.ndarray.INDArray;
-import org.nd4j.linalg.factory.Nd4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,13 +24,11 @@ public class KlinesController {
     /** Logger. */
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     private final Exchange exchange;
-    private final MultiLayerNetwork model;
-    private final Trader trader;
+    private final MultiLayerNetwork net;
 
-    public KlinesController(Exchange exchange, MultiLayerNetwork model, Trader trader) {
+    public KlinesController(Exchange exchange, MultiLayerNetwork net) {
         this.exchange = exchange;
-        this.model = model;
-        this.trader = trader;
+        this.net = net;
     }
 
     @GetMapping(path = "predict")
@@ -51,12 +46,12 @@ public class KlinesController {
                 .minusMinutes(0)
                 .toEpochSecond(ZoneOffset.UTC);
 
-        final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
+        final List<KucoinKline> kucoinKlines = getAggregatedKucoinKlinesByMin(exchange, startDate, endDate);
         Collections.reverse(kucoinKlines);
 
         List<String> listResult = new ArrayList<>();
         for (int i = 0; i < kucoinKlines.size() - TRAIN_MINUTES - PREDICT_DEEP; i++) {
-            float[] floatResult = trader.getOneMinutePredict(kucoinKlines.get(i));
+            float[] floatResult = getOneMinutePredict(kucoinKlines.get(i), net);
             int[] intLabels = new int[OUTPUT_SIZE];
             intLabels[getDelta(kucoinKlines, i)] = 1;
             if (floatResult[0] + floatResult[1] > 0.4) {

@@ -31,14 +31,14 @@ import java.util.Collections;
 import java.util.List;
 
 import static com.trading.bot.util.TradeUtil.calcData;
-import static com.trading.bot.util.TradeUtil.getKucoinKlines;
+import static com.trading.bot.util.TradeUtil.getAggregatedKucoinKlinesByMin;
 
 @Configuration
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int INPUT_SIZE = 4;
     public static final int OUTPUT_SIZE = 5;
-    public static final int TRAIN_MINUTES = 60;
+    public static final int TRAIN_MINUTES = 180;
     public static final int PREDICT_DEEP = 2;
     public static final int CURRENCY_DELTA = 20;
     public static final int NORMAL = 3;
@@ -102,14 +102,13 @@ public class BotConfig {
     }
 
     private void reloadFirstHour(Exchange exchange, MultiLayerNetwork net) throws IOException {
-        final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(TRAIN_MINUTES * 2).toEpochSecond(ZoneOffset.UTC);
-
-        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
+        final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusHours(2).toEpochSecond(ZoneOffset.UTC);
+        List<KucoinKline> kucoinKlines = getAggregatedKucoinKlinesByMin(exchange, startDate, 0L);
         Collections.reverse(kucoinKlines);
 
         INDArray indData = Nd4j.zeros(1, INPUT_SIZE, TRAIN_MINUTES);
         INDArray indLabels = Nd4j.zeros(1, OUTPUT_SIZE, TRAIN_MINUTES);
-        for (int y = 0; y < TRAIN_MINUTES; y++) {
+        for (int y = 0; y < kucoinKlines.size() - 1 - PREDICT_DEEP; y++) {
             calcData(kucoinKlines, 0, y, indData, indLabels);
         }
         net.rnnClearPreviousState();
