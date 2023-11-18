@@ -30,12 +30,13 @@ import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 
+import static com.trading.bot.util.TradeUtil.calcData;
 import static com.trading.bot.util.TradeUtil.getKucoinKlines;
 
 @Configuration
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
-    public static final int INPUT_SIZE = 2;
+    public static final int INPUT_SIZE = 4;
     public static final int OUTPUT_SIZE = 5;
     public static final int TRAIN_MINUTES = 60;
     public static final int PREDICT_DEEP = 2;
@@ -69,8 +70,7 @@ public class BotConfig {
     @Bean
     public MultiLayerNetwork getModel(Exchange exchange) throws IOException {
         final String keyName = CURRENCY_PAIR.base + ".zip";
-        final String path = FilenameUtils.concat(
-                System.getProperty("java.io.tmpdir"), keyName);
+        final String path = FilenameUtils.concat(System.getProperty("java.io.tmpdir"), keyName);
         final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
                 .withRegion(Regions.EU_CENTRAL_1)
                 .build();
@@ -94,37 +94,26 @@ public class BotConfig {
             System.exit(1);
         }
 
-        MultiLayerNetwork net = null;
-        try {
-            net = MultiLayerNetwork.load(new File(path), true);
-            logger.info("MultiLayerNetwork loaded from S3");
-        } catch (IOException e) {
-            logger.error(e.getMessage());
-            System.exit(1);
-        }
-
+        MultiLayerNetwork net = MultiLayerNetwork.load(new File(path), true);
+        logger.info("MultiLayerNetwork loaded from S3");
         reloadFirstHour(exchange, net);
 
         return net;
     }
 
     private void reloadFirstHour(Exchange exchange, MultiLayerNetwork net) throws IOException {
-        final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(TRAIN_MINUTES).toEpochSecond(ZoneOffset.UTC);
-        final long endDate = LocalDateTime.now(ZoneOffset.UTC).toEpochSecond(ZoneOffset.UTC);
+        final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(TRAIN_MINUTES * 2).toEpochSecond(ZoneOffset.UTC);
 
-        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
+        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
         Collections.reverse(kucoinKlines);
 
-        INDArray nextInput = Nd4j.zeros(1, INPUT_SIZE, TRAIN_MINUTES);
+        INDArray indData = Nd4j.zeros(1, INPUT_SIZE, TRAIN_MINUTES);
+        INDArray indLabels = Nd4j.zeros(1, OUTPUT_SIZE, TRAIN_MINUTES);
         for (int y = 0; y < TRAIN_MINUTES; y++) {
-            nextInput.putScalar(new int[]{0, 0, y},
-                    kucoinKlines.get(y).getClose()
-                            .subtract(kucoinKlines.get(y).getOpen()).movePointLeft(NORMAL).floatValue());
-            nextInput.putScalar(new int[]{0, 1, y},
-                    kucoinKlines.get(y).getVolume().movePointLeft(NORMAL).floatValue());
+            calcData(kucoinKlines, 0, y, indData, indLabels);
         }
         net.rnnClearPreviousState();
-        net.rnnTimeStep(nextInput);
+        net.rnnTimeStep(indData);
         logger.info("First hour loaded to MultiLayerNetwork");
     }
 }
