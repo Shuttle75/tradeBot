@@ -31,7 +31,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static com.trading.bot.util.TradeUtil.calcData;
-import static com.trading.bot.util.TradeUtil.getAggregatedKucoinKlinesByMin;
+import static com.trading.bot.util.TradeUtil.getKucoinKlines;
 
 @Configuration
 public class BotConfig {
@@ -102,12 +102,11 @@ public class BotConfig {
     }
 
     private void reloadFirstHour(Exchange exchange, MultiLayerNetwork net) throws IOException {
-        final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusHours(2).toEpochSecond(ZoneOffset.UTC);
-        List<KucoinKline> kucoinKlines = getAggregatedKucoinKlinesByMin(exchange, startDate, 0L);
+        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, 0L, 0L);
         Collections.reverse(kucoinKlines);
 
-        INDArray indData = Nd4j.zeros(1, INPUT_SIZE, TRAIN_MINUTES);
-        INDArray indLabels = Nd4j.zeros(1, OUTPUT_SIZE, TRAIN_MINUTES);
+        INDArray indData = Nd4j.zeros(1, INPUT_SIZE, kucoinKlines.size() - 1 - PREDICT_DEEP);
+        INDArray indLabels = Nd4j.zeros(1, OUTPUT_SIZE, kucoinKlines.size() - 1 - PREDICT_DEEP);
         for (int y = 0; y < kucoinKlines.size() - 1 - PREDICT_DEEP; y++) {
             calcData(kucoinKlines, 0, y, indData, indLabels);
         }

@@ -34,7 +34,6 @@ import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 
@@ -44,13 +43,13 @@ import static com.trading.bot.util.TradeUtil.*;
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int INPUT_SIZE = 4;
-    public static final int LAYER_SIZE = 128;
+    public static final int LAYER_SIZE = 200;
     public static final int OUTPUT_SIZE = 5;
     public static final int TRAIN_EXAMPLES = 1;
     public static final int TRAIN_MINUTES = 180;
     public static final int PREDICT_DEEP = 2;
     public static final int CURRENCY_DELTA = 20;
-    public static final int NET_FIT_ITERATIONS = 20000;
+    public static final float SCORE_LEVEL = 1F;
     public static final int NORMAL = 3;
 
 
@@ -89,8 +88,6 @@ public class BotConfig {
                 .gradientNormalizationThreshold(0.5)
                 .list()
                 .layer(new LSTM.Builder().activation(Activation.TANH).nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
-//                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE / 2).build())
-//                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE / 4).build())
                 .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
                         .activation(Activation.SOFTMAX).nOut(OUTPUT_SIZE).build())
                 .build();
@@ -100,9 +97,8 @@ public class BotConfig {
     public MultiLayerNetwork getModel(Exchange exchange, MultiLayerConfiguration config) throws IOException {
         final String keyName = CURRENCY_PAIR.base + ".zip";
         final String path = FilenameUtils.concat(System.getProperty("java.io.tmpdir"), keyName);
-        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.DAYS);
+        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         final AmazonS3 s3 = AmazonS3ClientBuilder.standard().withRegion(Regions.EU_CENTRAL_1).build();
-
 
         MultiLayerNetwork net = new MultiLayerNetwork(config);
         net.init();
@@ -118,7 +114,7 @@ public class BotConfig {
                 LocalDateTime endDate = now.minusMinutes(iQuery * (long) TRAIN_MINUTES);
 
                 List<KucoinKline> kucoinKlines =
-                        getAggregatedKucoinKlinesByMin(
+                        getKucoinKlines(
                                 exchange,
                                 startDate.toEpochSecond(ZoneOffset.UTC),
                                 endDate.toEpochSecond(ZoneOffset.UTC));
@@ -133,11 +129,8 @@ public class BotConfig {
                 iTrain++;
             }
 
-            for (int i = 0; i < NET_FIT_ITERATIONS; i++) {
+            while (net.score() > SCORE_LEVEL) {
                 net.fit(indData, indLabels);
-                if (net.score() < 1) {
-                    break;
-                }
             }
         }
 

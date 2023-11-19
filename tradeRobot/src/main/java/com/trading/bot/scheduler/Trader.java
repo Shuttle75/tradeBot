@@ -49,11 +49,12 @@ public class Trader {
     @Scheduled(cron = "55 * * * * *")
     public void buy() throws IOException {
         final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(30).toEpochSecond(ZoneOffset.UTC);
-        List<KucoinKline> kucoinKlines = getAggregatedKucoinKlinesByMin(exchange, startDate, 0L);
+        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
         lastKline = kucoinKlines.get(0);
 
         float[] predict = getOneMinutePredict(kucoinKlines.get(0), net);
         rates = printRates(predict);
+
         boolean isGoodTrend =
                 kucoinKlines.get(kucoinKlines.size() - 1).getOpen()
                         .subtract(kucoinKlines.get(0).getClose()).floatValue() < CURRENCY_DELTA * 10F;
@@ -69,14 +70,15 @@ public class Trader {
                 logger.info("{} {}", rates, isGoodTrend);
             }
         }
-
-        prevKline = lastKline;
     }
 
     @Scheduled(cron = "5/15 * * * * *")
     public void sell() throws IOException {
         if (active && nonNull(prevKline)) {
-            lastKline = getLastKucoinKlinesByMin(exchange);
+            final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(30).toEpochSecond(ZoneOffset.UTC);
+            List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
+            lastKline = kucoinKlines.get(0);
+            prevKline = kucoinKlines.get(1);
 
             boolean downNoLessThenPrev = lastKline.getClose().compareTo(prevKline.getOpen()) < 0;
             boolean downNoLessThenDelta = lastKline.getOpen().subtract(lastKline.getClose()).floatValue() > CURRENCY_DELTA;

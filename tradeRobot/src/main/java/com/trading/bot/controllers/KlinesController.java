@@ -46,7 +46,7 @@ public class KlinesController {
                 .minusMinutes(0)
                 .toEpochSecond(ZoneOffset.UTC);
 
-        final List<KucoinKline> kucoinKlines = getAggregatedKucoinKlinesByMin(exchange, startDate, endDate);
+        final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
         Collections.reverse(kucoinKlines);
 
         List<String> listResult = new ArrayList<>();
