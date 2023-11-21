@@ -64,14 +64,9 @@ public class Trader {
         }
     }
 
-    @Scheduled(cron = "5/15 * * * * *")
+    @Scheduled(cron = "10/15 * * * * *")
     public void sell() throws IOException {
         if (active && nonNull(prevKline) && predict[OUTPUT_SIZE - 1] < 0.7) {
-            if (predict[OUTPUT_SIZE - 1] < 0.7) {
-                logger.info("{} HOLD by predict", rates);
-                return;
-            }
-
             final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(30).toEpochSecond(ZoneOffset.UTC);
             List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
             KucoinKline lastKline = kucoinKlines.get(0);
@@ -79,7 +74,7 @@ public class Trader {
             boolean downNoLessThenPrev = lastKline.getClose().compareTo(prevKline.getOpen()) < 0;
             boolean downNoLessThenDelta = lastKline.getOpen().subtract(lastKline.getClose()).floatValue() > CURRENCY_DELTA;
 
-            if ((downNoLessThenPrev || downNoLessThenDelta || predict[0] > 0.7)) {
+            if ((downNoLessThenPrev || downNoLessThenDelta || predict[0] > 0.7) ) {
                 curAccount = curAccount.multiply(lastKline.getClose()).divide(firstPrice, 2, RoundingMode.HALF_UP);
                 logger.info("{} SELL {} firstPrice {} newPrice {}", rates, curAccount, firstPrice, lastKline.getClose());
                 active = false;

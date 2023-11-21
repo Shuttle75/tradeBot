@@ -112,8 +112,8 @@ public class BotConfig {
         try (INDArray indData = Nd4j.zeros(TRAIN_EXAMPLES, INPUT_SIZE, TRAIN_KLINES);
              INDArray indLabels = Nd4j.zeros(TRAIN_EXAMPLES, OUTPUT_SIZE, TRAIN_KLINES)) {
 
-            int i = 0;
-            while (i < TRAIN_EXAMPLES) {
+            int i = TRAIN_EXAMPLES - 1;
+            while (i >= 0) {
                 LocalDateTime startDate = now.minusSeconds(
                         i * (long) TRAIN_KLINES * KLINE_INTERVAL_TYPE.getSeconds()
                                 + TRAIN_KLINES  * KLINE_INTERVAL_TYPE.getSeconds()
@@ -134,7 +134,7 @@ public class BotConfig {
                     calcData(kucoinKlines, i, y, indData, indLabels);
                 }
 
-                i++;
+                i--;
             }
 
             net.fit(indData, indLabels);
