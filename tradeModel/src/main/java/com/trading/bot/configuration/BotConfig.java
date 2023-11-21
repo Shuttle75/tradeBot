@@ -18,6 +18,7 @@ import org.knowm.xchange.ExchangeFactory;
 import org.knowm.xchange.ExchangeSpecification;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.kucoin.KucoinExchange;
+import org.knowm.xchange.kucoin.dto.KlineIntervalType;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.nd4j.linalg.activations.Activation;
 import org.nd4j.linalg.api.ndarray.INDArray;
@@ -34,21 +35,24 @@ import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 
 import static com.trading.bot.util.TradeUtil.*;
+import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
 
 @Configuration
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int INPUT_SIZE = 4;
-    public static final int LAYER_SIZE = 200;
-    public static final int OUTPUT_SIZE = 5;
-    public static final int TRAIN_EXAMPLES = 1;
-    public static final int TRAIN_MINUTES = 180;
+    public static final int LAYER_SIZE = 128;
+    public static final int OUTPUT_SIZE = 3;
+    public static final int TRAIN_EXAMPLES = 8;
+    public static final int TRAIN_KLINES = 144;
+    public static final KlineIntervalType KLINE_INTERVAL_TYPE = min5;
     public static final int PREDICT_DEEP = 2;
-    public static final int CURRENCY_DELTA = 20;
+    public static final int CURRENCY_DELTA = 37;
     public static final float SCORE_LEVEL = 1F;
     public static final int NORMAL = 3;
 
@@ -88,6 +92,7 @@ public class BotConfig {
                 .gradientNormalizationThreshold(0.5)
                 .list()
                 .layer(new LSTM.Builder().activation(Activation.TANH).nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
+                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE / 2).build())
                 .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
                         .activation(Activation.SOFTMAX).nOut(OUTPUT_SIZE).build())
                 .build();
@@ -97,21 +102,24 @@ public class BotConfig {
     public MultiLayerNetwork getModel(Exchange exchange, MultiLayerConfiguration config) throws IOException {
         final String keyName = CURRENCY_PAIR.base + ".zip";
         final String path = FilenameUtils.concat(System.getProperty("java.io.tmpdir"), keyName);
-        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.HOURS);
         final AmazonS3 s3 = AmazonS3ClientBuilder.standard().withRegion(Regions.EU_CENTRAL_1).build();
 
         MultiLayerNetwork net = new MultiLayerNetwork(config);
         net.init();
         net.setListeners(new ScoreIterationListener(100));
 
-        try (INDArray indData = Nd4j.zeros(TRAIN_EXAMPLES, INPUT_SIZE, TRAIN_MINUTES);
-             INDArray indLabels = Nd4j.zeros(TRAIN_EXAMPLES, OUTPUT_SIZE, TRAIN_MINUTES)) {
+        try (INDArray indData = Nd4j.zeros(TRAIN_EXAMPLES, INPUT_SIZE, TRAIN_KLINES);
+             INDArray indLabels = Nd4j.zeros(TRAIN_EXAMPLES, OUTPUT_SIZE, TRAIN_KLINES)) {
 
-            int iQuery = 0;
-            int iTrain = 0;
-            while (iTrain < TRAIN_EXAMPLES) {
-                LocalDateTime startDate = now.minusDays(1);
-                LocalDateTime endDate = now.minusMinutes(iQuery * (long) TRAIN_MINUTES);
+            int i = 0;
+            while (i < TRAIN_EXAMPLES) {
+                LocalDateTime startDate = now.minusSeconds(
+                        i * (long) TRAIN_KLINES * KLINE_INTERVAL_TYPE.getSeconds()
+                                + TRAIN_KLINES  * KLINE_INTERVAL_TYPE.getSeconds()
+                                + PREDICT_DEEP * KLINE_INTERVAL_TYPE.getSeconds());
+                LocalDateTime endDate = now.minusSeconds(
+                        i * (long) TRAIN_KLINES * KLINE_INTERVAL_TYPE.getSeconds());
 
                 List<KucoinKline> kucoinKlines =
                         getKucoinKlines(
@@ -119,16 +127,17 @@ public class BotConfig {
                                 startDate.toEpochSecond(ZoneOffset.UTC),
                                 endDate.toEpochSecond(ZoneOffset.UTC));
                 Collections.reverse(kucoinKlines);
-                iQuery++;
 
                 logger.info("startDate {} endDate {}", startDate, endDate);
 
-                for (int y = 0; y < TRAIN_MINUTES; y++) {
-                    calcData(kucoinKlines, iTrain, y, indData, indLabels);
+                for (int y = 0; y < TRAIN_KLINES; y++) {
+                    calcData(kucoinKlines, i, y, indData, indLabels);
                 }
-                iTrain++;
+
+                i++;
             }
 
+            net.fit(indData, indLabels);
             while (net.score() > SCORE_LEVEL) {
                 net.fit(indData, indLabels);
             }

@@ -50,7 +50,7 @@ public class KlinesController {
         Collections.reverse(kucoinKlines);
 
         List<String> listResult = new ArrayList<>();
-        for (int i = 0; i < kucoinKlines.size() - TRAIN_MINUTES - PREDICT_DEEP; i++) {
+        for (int i = 0; i < kucoinKlines.size() - TRAIN_KLINES - PREDICT_DEEP; i++) {
             float[] floatResult = getOneMinutePredict(kucoinKlines.get(i), net);
             int[] intLabels = new int[OUTPUT_SIZE];
             intLabels[getDelta(kucoinKlines, i)] = 1;

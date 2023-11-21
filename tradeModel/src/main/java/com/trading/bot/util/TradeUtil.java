@@ -12,8 +12,6 @@ import java.math.BigDecimal;
 import java.util.*;
 
 import static com.trading.bot.configuration.BotConfig.*;
-import static java.lang.Math.round;
-import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min1;
 
 public class TradeUtil {
 
@@ -22,7 +20,7 @@ public class TradeUtil {
 
     public static List<KucoinKline> getKucoinKlines(Exchange exchange, long startDate, long endDate) throws IOException {
         return ((KucoinMarketDataService) exchange.getMarketDataService())
-                .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min1);
+                .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, KLINE_INTERVAL_TYPE);
     }
 
     public static float[] getOneMinutePredict(KucoinKline kucoinKline, MultiLayerNetwork net) {
@@ -42,11 +40,13 @@ public class TradeUtil {
         BigDecimal data = kucoinKlines.get(pos + PREDICT_DEEP).getClose()
                 .subtract(kucoinKlines.get(pos).getClose());
 
-        int delta = round((data.floatValue() + CURRENCY_DELTA * 2) / CURRENCY_DELTA);
-
-        delta = Math.max(delta, 0);
-        delta = Math.min(delta, OUTPUT_SIZE - 1);
-        return delta;
+        if (data.floatValue() > CURRENCY_DELTA) {
+            return  2;
+        } else if (data.floatValue() < -CURRENCY_DELTA) {
+            return  0;
+        } else {
+            return 1;
+        }
     }
 
     public static void calcData(List<KucoinKline> kucoinKlines, int i, int y, INDArray indData, INDArray indLabels) {

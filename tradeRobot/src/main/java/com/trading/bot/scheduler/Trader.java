@@ -29,10 +29,8 @@ public class Trader {
     private BigDecimal maxPrice;
     private BigDecimal firstPrice;
     private String rates;
-    private int activeCounter = 20;
-
     private KucoinKline prevKline;
-    private KucoinKline lastKline;
+    private float[] predict;
 
     @Value("${trader.buylimit}")
     public float traderBuyLimit;
@@ -46,45 +44,42 @@ public class Trader {
         this.net = net;
     }
 
-    @Scheduled(cron = "55 * * * * *")
+    @Scheduled(cron = "5 */5 * * * *")
     public void buy() throws IOException {
         final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(30).toEpochSecond(ZoneOffset.UTC);
         List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
-        lastKline = kucoinKlines.get(0);
-
-        float[] predict = getOneMinutePredict(kucoinKlines.get(0), net);
+        prevKline = kucoinKlines.get(1);
+        predict = getOneMinutePredict(prevKline, net);
         rates = printRates(predict);
 
-        boolean isGoodTrend =
-                kucoinKlines.get(kucoinKlines.size() - 1).getOpen()
-                        .subtract(kucoinKlines.get(0).getClose()).floatValue() < CURRENCY_DELTA * 10F;
-
         if (!active) {
-            if (predict[OUTPUT_SIZE - 1] > 0.7 && isGoodTrend) {
+            if (predict[OUTPUT_SIZE - 1] > 0.7) {
                 active = true;
-                firstPrice = lastKline.getClose();
-                maxPrice = lastKline.getClose();
-                activeCounter = predict[OUTPUT_SIZE - 1] > 0.7 ? 12 : 0;
-                logger.info("{} BUY {} Price {}", rates, curAccount, lastKline.getClose());
+                firstPrice = prevKline.getClose();
+                maxPrice = prevKline.getClose();
+                logger.info("{} BUY {} Price {}", rates, curAccount, prevKline.getClose());
             } else {
-                logger.info("{} {}", rates, isGoodTrend);
+                logger.info("{}", rates);
             }
         }
     }
 
     @Scheduled(cron = "5/15 * * * * *")
     public void sell() throws IOException {
-        if (active && nonNull(prevKline)) {
+        if (active && nonNull(prevKline) && predict[OUTPUT_SIZE - 1] < 0.7) {
+            if (predict[OUTPUT_SIZE - 1] < 0.7) {
+                logger.info("{} HOLD by predict", rates);
+                return;
+            }
+
             final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(30).toEpochSecond(ZoneOffset.UTC);
             List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
-            lastKline = kucoinKlines.get(0);
-            prevKline = kucoinKlines.get(1);
+            KucoinKline lastKline = kucoinKlines.get(0);
 
             boolean downNoLessThenPrev = lastKline.getClose().compareTo(prevKline.getOpen()) < 0;
             boolean downNoLessThenDelta = lastKline.getOpen().subtract(lastKline.getClose()).floatValue() > CURRENCY_DELTA;
-            boolean notGreen = lastKline.getClose().compareTo(lastKline.getOpen()) < 0;
 
-            if ((downNoLessThenPrev || downNoLessThenDelta) && activeCounter <= 0 && notGreen) {
+            if ((downNoLessThenPrev || downNoLessThenDelta || predict[0] > 0.7)) {
                 curAccount = curAccount.multiply(lastKline.getClose()).divide(firstPrice, 2, RoundingMode.HALF_UP);
                 logger.info("{} SELL {} firstPrice {} newPrice {}", rates, curAccount, firstPrice, lastKline.getClose());
                 active = false;
@@ -92,9 +87,8 @@ public class Trader {
                 if (maxPrice.compareTo(lastKline.getClose()) < 0) {
                     maxPrice = lastKline.getClose();
                 }
-                logger.info("{} HOLD {} {} {}", rates, downNoLessThenPrev, downNoLessThenDelta, notGreen);
+                logger.info("{} HOLD", rates);
             }
-            activeCounter--;
         }
     }
 }

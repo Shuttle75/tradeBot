@@ -13,9 +13,11 @@ import org.knowm.xchange.ExchangeFactory;
 import org.knowm.xchange.ExchangeSpecification;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.kucoin.KucoinExchange;
+import org.knowm.xchange.kucoin.dto.KlineIntervalType;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
+import org.nd4j.linalg.string.NDArrayStrings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,20 +29,23 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 
 import static com.trading.bot.util.TradeUtil.calcData;
 import static com.trading.bot.util.TradeUtil.getKucoinKlines;
+import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
 
 @Configuration
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int INPUT_SIZE = 4;
-    public static final int OUTPUT_SIZE = 5;
-    public static final int TRAIN_MINUTES = 180;
+    public static final int OUTPUT_SIZE = 3;
+    public static final int TRAIN_KLINES = 180;
+    public static final KlineIntervalType KLINE_INTERVAL_TYPE = min5;
     public static final int PREDICT_DEEP = 2;
-    public static final int CURRENCY_DELTA = 20;
+    public static final int CURRENCY_DELTA = 37;
     public static final int NORMAL = 3;
 
     @Value("${model.bucket}")
@@ -102,16 +107,21 @@ public class BotConfig {
     }
 
     private void reloadFirstHour(Exchange exchange, MultiLayerNetwork net) throws IOException {
-        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, 0L, 0L);
+        final LocalDateTime startDate = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MINUTES).minusHours(2);
+        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate.toEpochSecond(ZoneOffset.UTC), 0L);
         Collections.reverse(kucoinKlines);
 
-        INDArray indData = Nd4j.zeros(1, INPUT_SIZE, kucoinKlines.size() - 1 - PREDICT_DEEP);
-        INDArray indLabels = Nd4j.zeros(1, OUTPUT_SIZE, kucoinKlines.size() - 1 - PREDICT_DEEP);
-        for (int y = 0; y < kucoinKlines.size() - 1 - PREDICT_DEEP; y++) {
-            calcData(kucoinKlines, 0, y, indData, indLabels);
+        try (INDArray indData = Nd4j.zeros(1, INPUT_SIZE, kucoinKlines.size() - PREDICT_DEEP);
+             INDArray indLabels = Nd4j.zeros(1, OUTPUT_SIZE, kucoinKlines.size() - PREDICT_DEEP)) {
+            for (int y = 0; y < kucoinKlines.size() - PREDICT_DEEP; y++) {
+                calcData(kucoinKlines, 0, y, indData, indLabels);
+            }
+
+            net.rnnClearPreviousState();
+            String predict = net.rnnTimeStep(indData)
+                    .toString(new NDArrayStrings(" ", "0.00"))
+                    .replace("   ", " ");
+            logger.info("First hour loaded to MultiLayerNetwork, predict \n{}", predict);
         }
-        net.rnnClearPreviousState();
-        net.rnnTimeStep(indData);
-        logger.info("First hour loaded to MultiLayerNetwork");
     }
 }
