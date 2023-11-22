@@ -16,7 +16,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 
-import static com.trading.bot.configuration.BotConfig.*;
 import static com.trading.bot.util.TradeUtil.*;
 import static java.util.Objects.isNull;
 
@@ -42,7 +41,7 @@ public class Trader {
         this.net = net;
     }
 
-    @Scheduled(cron = "5 */5 * * * *")
+    @Scheduled(cron = "5 * * * * *")
     public void buy() throws IOException {
         final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(30).toEpochSecond(ZoneOffset.UTC);
         List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
@@ -63,7 +62,9 @@ public class Trader {
         KucoinKline lastKline = kucoinKlines.get(0);
 
         boolean lessThenPrev = lastKline.getClose().compareTo(prevKline.getLow()) < 0;
-        boolean lessThenDelta = lastKline.getOpen().subtract(lastKline.getClose()).floatValue() > CURRENCY_DELTA;
+        boolean lessThenDelta = lastKline.getOpen()
+                .subtract(lastKline.getClose())
+                .compareTo(lastKline.getClose().movePointLeft(3)) > 0;
         boolean isGreen = lastKline.getClose().compareTo(lastKline.getOpen()) > 0;
         boolean isRed = !isGreen;
         boolean notUp = predict[2] < 0.8;

@@ -24,52 +24,49 @@ public class TradeUtil {
     }
 
     public static float[] getOneMinutePredict(KucoinKline kucoinKline, MultiLayerNetwork net) {
-        try (INDArray nextInput = Nd4j.zeros(1, INPUT_SIZE, 1)) {
+        try (INDArray indData = Nd4j.zeros(1, INPUT_SIZE, 1)) {
 
-            nextInput.putScalar(new int[]{0, 0, 0},
-                    kucoinKline.getClose()
-                            .subtract(kucoinKline.getOpen()).movePointLeft(NORMAL).floatValue());
-            nextInput.putScalar(new int[]{0, 1, 0},
-                    kucoinKline.getVolume().movePointLeft(NORMAL).floatValue());
+            calcData(kucoinKline, 0, 0, indData);
 
-            return net.rnnTimeStep(nextInput).ravel().toFloatVector();
+            return net.rnnTimeStep(indData).ravel().toFloatVector();
         }
     }
 
-    public static int getDelta(List<KucoinKline> kucoinKlines, int pos) {
-        BigDecimal data = kucoinKlines.get(pos + PREDICT_DEEP).getClose()
-                .subtract(kucoinKlines.get(pos).getClose());
+    public static int getDelta(List<KucoinKline> kucoinKlines, int i) {
+        int sum = kucoinKlines.subList(i, i + PREDICT_DEEP).stream()
+                .map(kucoinKline -> kucoinKline.getClose().subtract(kucoinKline.getOpen()))
+                .mapToInt(BigDecimal::signum)
+                .sum();
 
-        if (data.floatValue() > CURRENCY_DELTA) {
+        if (sum >= PREDICT_DEEP) {
             return  2;
-        } else if (data.floatValue() < -CURRENCY_DELTA) {
+        } else if (sum <= -PREDICT_DEEP) {
             return  0;
         } else {
             return 1;
         }
     }
 
-    public static void calcData(List<KucoinKline> kucoinKlines, int i, int y, INDArray indData, INDArray indLabels) {
+    public static void calcData(KucoinKline kucoinKline, int i, int y, INDArray indData) {
         indData.putScalar(new int[]{i, 0, y},
-                kucoinKlines.get(y).getClose()
-                        .subtract(kucoinKlines.get(y).getOpen()).movePointLeft(NORMAL).floatValue());
+                kucoinKline.getClose()
+                        .subtract(kucoinKline.getOpen()).movePointLeft(NORMAL).floatValue());
         indData.putScalar(new int[]{i, 1, y},
-                kucoinKlines.get(y).getClose()
-                        .compareTo(kucoinKlines.get(y).getOpen()) > 0 ?
-                        kucoinKlines.get(y).getHigh()
-                                .subtract(kucoinKlines.get(y).getClose()).movePointLeft(NORMAL).floatValue() :
-                        kucoinKlines.get(y).getHigh()
-                                .subtract(kucoinKlines.get(y).getOpen()).movePointLeft(NORMAL).floatValue());
+                kucoinKline.getClose()
+                        .compareTo(kucoinKline.getOpen()) > 0 ?
+                        kucoinKline.getHigh()
+                                .subtract(kucoinKline.getClose()).movePointLeft(NORMAL).floatValue() :
+                        kucoinKline.getHigh()
+                                .subtract(kucoinKline.getOpen()).movePointLeft(NORMAL).floatValue());
         indData.putScalar(new int[]{i, 2, y},
-                kucoinKlines.get(y).getClose()
-                        .compareTo(kucoinKlines.get(y).getOpen()) > 0 ?
-                        kucoinKlines.get(y).getOpen()
-                                .subtract(kucoinKlines.get(y).getLow()).movePointLeft(NORMAL).floatValue() :
-                        kucoinKlines.get(y).getClose()
-                                .subtract(kucoinKlines.get(y).getLow()).movePointLeft(NORMAL).floatValue());
+                kucoinKline.getClose()
+                        .compareTo(kucoinKline.getOpen()) > 0 ?
+                        kucoinKline.getOpen()
+                                .subtract(kucoinKline.getLow()).movePointLeft(NORMAL).floatValue() :
+                        kucoinKline.getClose()
+                                .subtract(kucoinKline.getLow()).movePointLeft(NORMAL).floatValue());
         indData.putScalar(new int[]{i, 3, y},
-                kucoinKlines.get(y).getVolume().movePointLeft(NORMAL).floatValue());
-        indLabels.putScalar(new int[]{i, getDelta(kucoinKlines, y), y}, 1);
+                kucoinKline.getVolume().movePointLeft(NORMAL).floatValue());
     }
 
     public static String printRates(float[] floatResult) {

@@ -40,7 +40,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static com.trading.bot.util.TradeUtil.*;
-import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
+import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min1;
 
 @Configuration
 public class BotConfig {
@@ -48,13 +48,12 @@ public class BotConfig {
     public static final int INPUT_SIZE = 4;
     public static final int LAYER_SIZE = 128;
     public static final int OUTPUT_SIZE = 3;
-    public static final int TRAIN_EXAMPLES = 32;
-    public static final int TRAIN_KLINES = 144;
-    public static final KlineIntervalType KLINE_INTERVAL_TYPE = min5;
+    public static final int TRAIN_EXAMPLES = 48;
+    public static final int TRAIN_KLINES = 120;
+    public static final KlineIntervalType KLINE_INTERVAL_TYPE = min1;
     public static final int PREDICT_DEEP = 3;
-    public static final int CURRENCY_DELTA = 72;
-    public static final float SCORE_LEVEL = 16F;
-    public static final int NORMAL = 3;
+    public static final int NORMAL = 2;
+    public static final double SCORE_LEVEL = 8D;
 
 
     @Value("${model.bucket}")
@@ -130,7 +129,8 @@ public class BotConfig {
                 logger.info("startDate {} endDate {}", startDate, endDate);
 
                 for (int y = 0; y < TRAIN_KLINES; y++) {
-                    calcData(kucoinKlines, i, y, indData, indLabels);
+                    calcData(kucoinKlines.get(y), i, y, indData);
+                    indLabels.putScalar(new int[]{i, getDelta(kucoinKlines, y), y}, 1);
                 }
 
                 i--;
