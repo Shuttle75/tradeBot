@@ -18,17 +18,15 @@ import java.util.List;
 
 import static com.trading.bot.configuration.BotConfig.*;
 import static com.trading.bot.util.TradeUtil.*;
-import static java.util.Objects.nonNull;
+import static java.util.Objects.isNull;
 
 @Service
 public class Trader {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     private final Exchange exchange;
     private final MultiLayerNetwork net;
-    private boolean active;
-    private BigDecimal maxPrice;
+    private boolean purchased;
     private BigDecimal firstPrice;
-    private String rates;
     private KucoinKline prevKline;
     private float[] predict;
 
@@ -50,40 +48,38 @@ public class Trader {
         List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
         prevKline = kucoinKlines.get(1);
         predict = getOneMinutePredict(prevKline, net);
-        rates = printRates(predict);
-
-        if (!active) {
-            if (predict[OUTPUT_SIZE - 1] > 0.7) {
-                active = true;
-                firstPrice = prevKline.getClose();
-                maxPrice = prevKline.getClose();
-                logger.info("{} BUY {} Price {}", rates, curAccount, prevKline.getClose());
-            } else {
-                logger.info("{}", rates);
-            }
-        }
+        String rates = printRates(predict);
+        logger.info("{}", rates);
     }
 
     @Scheduled(cron = "10/15 * * * * *")
     public void sell() throws IOException {
-        if (active && nonNull(prevKline) && predict[OUTPUT_SIZE - 1] < 0.7) {
-            final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(30).toEpochSecond(ZoneOffset.UTC);
-            List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
-            KucoinKline lastKline = kucoinKlines.get(0);
+        if (isNull(prevKline)) {
+            return;                 // When prediction not run before
+        }
 
-            boolean downNoLessThenPrev = lastKline.getClose().compareTo(prevKline.getOpen()) < 0;
-            boolean downNoLessThenDelta = lastKline.getOpen().subtract(lastKline.getClose()).floatValue() > CURRENCY_DELTA;
+        final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(30).toEpochSecond(ZoneOffset.UTC);
+        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
+        KucoinKline lastKline = kucoinKlines.get(0);
 
-            if ((downNoLessThenPrev || downNoLessThenDelta || predict[0] > 0.7) ) {
-                curAccount = curAccount.multiply(lastKline.getClose()).divide(firstPrice, 2, RoundingMode.HALF_UP);
-                logger.info("{} SELL {} firstPrice {} newPrice {}", rates, curAccount, firstPrice, lastKline.getClose());
-                active = false;
-            } else {
-                if (maxPrice.compareTo(lastKline.getClose()) < 0) {
-                    maxPrice = lastKline.getClose();
-                }
-                logger.info("{} HOLD", rates);
-            }
+        boolean lessThenPrev = lastKline.getClose().compareTo(prevKline.getLow()) < 0;
+        boolean lessThenDelta = lastKline.getOpen().subtract(lastKline.getClose()).floatValue() > CURRENCY_DELTA;
+        boolean isGreen = lastKline.getClose().compareTo(lastKline.getOpen()) > 0;
+        boolean isRed = !isGreen;
+        boolean notUp = predict[2] < 0.8;
+        boolean goDown = predict[0] > 0.8;
+
+        if (!purchased && predict[2] > 0.8 && isGreen) {
+            firstPrice = lastKline.getClose();
+            logger.info("BUY {} Price {}", curAccount, prevKline.getClose());
+            purchased = true;
+            return;
+        }
+
+        if (purchased && ((notUp && lessThenPrev) || (goDown && isRed) || lessThenDelta)) {
+            curAccount = curAccount.multiply(lastKline.getClose()).divide(firstPrice, 2, RoundingMode.HALF_UP);
+            logger.info("SELL {} firstPrice {} newPrice {}", curAccount, firstPrice, lastKline.getClose());
+            purchased = false;
         }
     }
 }

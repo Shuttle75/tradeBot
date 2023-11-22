@@ -48,12 +48,12 @@ public class BotConfig {
     public static final int INPUT_SIZE = 4;
     public static final int LAYER_SIZE = 128;
     public static final int OUTPUT_SIZE = 3;
-    public static final int TRAIN_EXAMPLES = 8;
+    public static final int TRAIN_EXAMPLES = 32;
     public static final int TRAIN_KLINES = 144;
     public static final KlineIntervalType KLINE_INTERVAL_TYPE = min5;
-    public static final int PREDICT_DEEP = 2;
-    public static final int CURRENCY_DELTA = 37;
-    public static final float SCORE_LEVEL = 1F;
+    public static final int PREDICT_DEEP = 3;
+    public static final int CURRENCY_DELTA = 72;
+    public static final float SCORE_LEVEL = 16F;
     public static final int NORMAL = 3;
 
 
@@ -92,7 +92,6 @@ public class BotConfig {
                 .gradientNormalizationThreshold(0.5)
                 .list()
                 .layer(new LSTM.Builder().activation(Activation.TANH).nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
-                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE / 2).build())
                 .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
                         .activation(Activation.SOFTMAX).nOut(OUTPUT_SIZE).build())
                 .build();

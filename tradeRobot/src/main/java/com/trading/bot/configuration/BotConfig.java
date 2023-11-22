@@ -27,9 +27,6 @@ import org.springframework.context.annotation.Configuration;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 
@@ -44,7 +41,7 @@ public class BotConfig {
     public static final int OUTPUT_SIZE = 3;
     public static final int TRAIN_KLINES = 180;
     public static final KlineIntervalType KLINE_INTERVAL_TYPE = min5;
-    public static final int PREDICT_DEEP = 2;
+    public static final int PREDICT_DEEP = 3;
     public static final int CURRENCY_DELTA = 37;
     public static final int NORMAL = 3;
 
@@ -107,8 +104,7 @@ public class BotConfig {
     }
 
     private void reloadFirstHour(Exchange exchange, MultiLayerNetwork net) throws IOException {
-        final LocalDateTime startDate = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MINUTES).minusHours(2);
-        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate.toEpochSecond(ZoneOffset.UTC), 0L);
+        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, 0L, 0L);
         Collections.reverse(kucoinKlines);
 
         try (INDArray indData = Nd4j.zeros(1, INPUT_SIZE, kucoinKlines.size() - PREDICT_DEEP);
