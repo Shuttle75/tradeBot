@@ -40,7 +40,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static com.trading.bot.util.TradeUtil.*;
-import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min1;
+import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
 
 @Configuration
 public class BotConfig {
@@ -48,11 +48,12 @@ public class BotConfig {
     public static final int INPUT_SIZE = 4;
     public static final int LAYER_SIZE = 128;
     public static final int OUTPUT_SIZE = 3;
-    public static final int TRAIN_EXAMPLES = 96;
-    public static final int TRAIN_KLINES = 60;
-    public static final KlineIntervalType KLINE_INTERVAL_TYPE = min1;
+    public static final int TRAIN_EXAMPLES = 120;
+    public static final int TRAIN_KLINES = 72;
+    public static final KlineIntervalType KLINE_INTERVAL_TYPE = min5;
     public static final int PREDICT_DEEP = 3;
-    public static final float CURRENCY_K = 0.0015F;
+    public static final float DELTA_PRICE = 2.5F;
+    public static final int NORMAL = 2;
     public static final double SCORE_LEVEL = 4D;
 
 

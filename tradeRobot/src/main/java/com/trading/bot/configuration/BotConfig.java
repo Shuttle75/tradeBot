@@ -24,7 +24,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 
-import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min1;
+import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
 
 @Configuration
 public class BotConfig {
@@ -32,8 +32,9 @@ public class BotConfig {
     public static final int INPUT_SIZE = 4;
     public static final int OUTPUT_SIZE = 3;
     public static final int TRAIN_KLINES = 180;
-    public static final KlineIntervalType KLINE_INTERVAL_TYPE = min1;
+    public static final KlineIntervalType KLINE_INTERVAL_TYPE = min5;
     public static final int PREDICT_DEEP = 3;
+    public static final float CURRENCY_K = 0.003F;
     public static final int NORMAL = 2;
 
     @Value("${model.bucket}")

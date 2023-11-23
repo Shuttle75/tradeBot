@@ -41,8 +41,8 @@ public class Trader {
         this.net = net;
     }
 
-    @Scheduled(cron = "5 * * * * *")
-    public void buy() throws IOException {
+    @Scheduled(cron = "5 */5 * * * *")
+    public void predict() throws IOException {
         final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(30).toEpochSecond(ZoneOffset.UTC);
         List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
         prevKline = kucoinKlines.get(1);
@@ -51,7 +51,7 @@ public class Trader {
         logger.info("{}", rates);
     }
 
-    @Scheduled(cron = "10/5 * * * * *")
+    @Scheduled(cron = "10/15 * * * * *")
     public void sell() throws IOException {
         if (isNull(prevKline)) {
             return;                 // When prediction not run before
