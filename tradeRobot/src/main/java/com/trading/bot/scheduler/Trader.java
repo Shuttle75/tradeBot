@@ -14,9 +14,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.trading.bot.util.TradeUtil.*;
@@ -34,7 +32,7 @@ public class Trader {
     private final LimitedQueue<BigDecimal> trendQueue = new LimitedQueue<>(4);
 
     @Value("${trader.buylimit}")
-    public float traderBuyLimit;
+    public float tradeLimit;
 
 
     // Only for test !!!!!!!!!!!!!
@@ -70,18 +68,23 @@ public class Trader {
         boolean lessThenDelta = lastKline.getOpen()
                 .subtract(lastKline.getClose())
                 .compareTo(lastKline.getClose().movePointLeft(3)) > 0;
-        boolean isRed = lastKline.getOpen().compareTo(lastKline.getClose()) > 0;
+
 
         trendQueue.add(lastKline.getClose());
 
-        if (!purchased && predict[2] > 0.8 && trendQueue.trendIsUp()) {
+        if (!purchased
+                && predict[2] > tradeLimit
+                && trendQueue.trendIsUp()) {
             firstPrice = lastKline.getClose();
             logger.info("BUY {} Price {}", curAccount, prevKline.getClose());
             purchased = true;
             return;
         }
 
-        if (purchased && ((predict[2] < 0.8 && lessThenPrev) || (predict[0] > 0.8 && isRed) || lessThenDelta)) {
+        if (purchased &&
+                ((predict[2] < tradeLimit && lessThenPrev)
+                        || (predict[0] > tradeLimit && trendQueue.trendIsDown())
+                        || lessThenDelta)) {
             curAccount = curAccount.multiply(lastKline.getClose()).divide(firstPrice, 2, RoundingMode.HALF_UP);
             logger.info("SELL {} firstPrice {} newPrice {}", curAccount, firstPrice, lastKline.getClose());
             purchased = false;
@@ -106,8 +109,21 @@ public class Trader {
         }
 
         public boolean trendIsUp() {
-            return size() == limit
-                    && this.stream().sorted().collect(Collectors.toList()).equals(new ArrayList<>(this));
+            List<E> sorted = this.stream()
+                    .sorted()
+                    .collect(Collectors.toList());
+
+            return size() == limit && sorted.equals(new ArrayList<>(this));
+        }
+
+        public boolean trendIsDown() {
+            List<E> sorted = this.stream()
+                    .sorted()
+                    .collect(Collectors.toList());
+
+            Collections.reverse(sorted);
+
+            return size() == limit && sorted.equals(new ArrayList<>(this));
         }
     }
 }

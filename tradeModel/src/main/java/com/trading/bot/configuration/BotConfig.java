@@ -52,9 +52,9 @@ public class BotConfig {
     public static final int TRAIN_KLINES = 72;
     public static final KlineIntervalType KLINE_INTERVAL_TYPE = min5;
     public static final int PREDICT_DEEP = 3;
-    public static final float DELTA_PRICE = 2.5F;
+    public static final float DELTA_PRICE = 2F;
     public static final int NORMAL = 2;
-    public static final double SCORE_LEVEL = 4D;
+    public static final double SCORE_LEVEL = 8D;
 
 
     @Value("${model.bucket}")
@@ -115,10 +115,10 @@ public class BotConfig {
             while (i >= 0) {
                 LocalDateTime startDate = now.minusSeconds(
                         i * (long) TRAIN_KLINES * KLINE_INTERVAL_TYPE.getSeconds()
-                                + TRAIN_KLINES  * KLINE_INTERVAL_TYPE.getSeconds()
-                                + PREDICT_DEEP * KLINE_INTERVAL_TYPE.getSeconds());
+                                + TRAIN_KLINES  * KLINE_INTERVAL_TYPE.getSeconds());
                 LocalDateTime endDate = now.minusSeconds(
-                        i * (long) TRAIN_KLINES * KLINE_INTERVAL_TYPE.getSeconds());
+                        i * (long) TRAIN_KLINES * KLINE_INTERVAL_TYPE.getSeconds()
+                                - PREDICT_DEEP * KLINE_INTERVAL_TYPE.getSeconds());
 
                 List<KucoinKline> kucoinKlines =
                         getKucoinKlines(
