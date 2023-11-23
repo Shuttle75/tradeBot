@@ -34,7 +34,7 @@ public class BotConfig {
     public static final int TRAIN_KLINES = 180;
     public static final KlineIntervalType KLINE_INTERVAL_TYPE = min5;
     public static final int PREDICT_DEEP = 3;
-    public static final float CURRENCY_K = 0.003F;
+    public static final float DELTA_PRICE = 2.5F;
     public static final int NORMAL = 2;
 
     @Value("${model.bucket}")

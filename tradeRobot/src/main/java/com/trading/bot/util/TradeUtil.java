@@ -36,7 +36,7 @@ public class TradeUtil {
         BigDecimal data = kucoinKlines.get(i + PREDICT_DEEP).getClose()
                 .subtract(kucoinKlines.get(i).getClose());
 
-        float currencyDelta = kucoinKlines.get(i).getClose().floatValue() * CURRENCY_K;
+        float currencyDelta = kucoinKlines.get(i).getClose().movePointLeft(3).floatValue() * DELTA_PRICE;
 
         if (data.floatValue() > currencyDelta) {
             return  2;
