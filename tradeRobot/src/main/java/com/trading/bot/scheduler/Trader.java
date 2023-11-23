@@ -51,7 +51,7 @@ public class Trader {
         logger.info("{}", rates);
     }
 
-    @Scheduled(cron = "10/15 * * * * *")
+    @Scheduled(cron = "10/5 * * * * *")
     public void sell() throws IOException {
         if (isNull(prevKline)) {
             return;                 // When prediction not run before

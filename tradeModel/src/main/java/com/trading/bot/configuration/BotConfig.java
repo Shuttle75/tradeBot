@@ -48,12 +48,12 @@ public class BotConfig {
     public static final int INPUT_SIZE = 4;
     public static final int LAYER_SIZE = 128;
     public static final int OUTPUT_SIZE = 3;
-    public static final int TRAIN_EXAMPLES = 48;
-    public static final int TRAIN_KLINES = 120;
+    public static final int TRAIN_EXAMPLES = 96;
+    public static final int TRAIN_KLINES = 60;
     public static final KlineIntervalType KLINE_INTERVAL_TYPE = min1;
     public static final int PREDICT_DEEP = 3;
-    public static final int NORMAL = 2;
-    public static final double SCORE_LEVEL = 8D;
+    public static final float CURRENCY_K = 0.0015F;
+    public static final double SCORE_LEVEL = 4D;
 
 
     @Value("${model.bucket}")
