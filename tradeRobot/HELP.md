@@ -20,7 +20,13 @@ The following guides illustrate how to use some features concretely:
 * [Building REST services with Spring](https://spring.io/guides/tutorials/rest/)
 * [Accessing Data with JPA](https://spring.io/guides/gs/accessing-data-jpa/)
 
-aws s3 cp s3://trade-crypto-releases/tradeRobot-0.0.1-SNAPSHOT.jar /home/ec2-user/tradeRobot-0.0.1-SNAPSHOT.jar
-sudo yum install java-11-amazon-corretto --assumeyes
-sudo java -jar --illegal-access=deny tradeRobot-0.0.1-SNAPSHOT.jar
 
+sudo yum install java-11-amazon-corretto --assumeyes
+sudo yum install amazon-cloudwatch-agent
+
+sudo aws s3 cp s3://trade-crypto-releases/tradeRobot-0.0.1-SNAPSHOT.jar tradeRobot-0.0.1-SNAPSHOT.jar
+sudo aws s3 cp s3://trade-crypto-releases/config.json /opt/aws/amazon-cloudwatch-agent/bin/config.json
+
+sudo java -jar --illegal-access=deny tradeRobot-0.0.1-SNAPSHOT.jar > tradeRobot.log &
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/bin/config.json
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a status

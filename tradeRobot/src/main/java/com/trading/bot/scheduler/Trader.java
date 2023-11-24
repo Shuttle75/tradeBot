@@ -17,6 +17,7 @@ import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.trading.bot.configuration.BotConfig.TREND_QUEUE;
 import static com.trading.bot.util.TradeUtil.*;
 import static java.util.Objects.isNull;
 
@@ -29,7 +30,7 @@ public class Trader {
     private BigDecimal firstPrice;
     private KucoinKline prevKline;
     private float[] predict;
-    private final LimitedQueue<BigDecimal> trendQueue = new LimitedQueue<>(8);
+    private final LimitedQueue<BigDecimal> trendQueue = new LimitedQueue<>(TREND_QUEUE);
 
     @Value("${trader.buylimit}")
     public float tradeLimit;
@@ -43,7 +44,7 @@ public class Trader {
         this.net = net;
     }
 
-    @Scheduled(cron = "5 */5 * * * *")
+    @Scheduled(cron = "30 */5 * * * *")
     public void predict() throws IOException {
         final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(30).toEpochSecond(ZoneOffset.UTC);
         List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
@@ -54,7 +55,7 @@ public class Trader {
         trendQueue.clear();
     }
 
-    @Scheduled(cron = "10/10 * * * * *")
+    @Scheduled(cron = "5/10 * * * * *")
     public void sell() throws IOException {
         if (isNull(prevKline)) {
             return;                 // When prediction not run before
@@ -87,6 +88,7 @@ public class Trader {
                         || lessThenDelta)) {
             curAccount = curAccount.multiply(lastKline.getClose()).divide(firstPrice, 2, RoundingMode.HALF_UP);
             logger.info("SELL {} firstPrice {} newPrice {}", curAccount, firstPrice, lastKline.getClose());
+            predict = new float[] {0F, 0F, 0F};
             purchased = false;
         }
     }
