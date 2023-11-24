@@ -46,14 +46,14 @@ import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int INPUT_SIZE = 4;
-    public static final int LAYER_SIZE = 128;
+    public static final int LAYER_SIZE = 256;
     public static final int OUTPUT_SIZE = 3;
-    public static final int TRAIN_EXAMPLES = 120;
-    public static final int TRAIN_KLINES = 72;
+    public static final int TRAIN_EXAMPLES = 14;
+    public static final int TRAIN_KLINES = 288;
     public static final KlineIntervalType KLINE_INTERVAL_TYPE = min5;
     public static final int PREDICT_DEEP = 3;
-    public static final float DELTA_PRICE = 2F;
-    public static final int NORMAL = 2;
+    public static final float DELTA_PRICE = 1.5F;
+    public static final float NORMAL = 0.004F;
     public static final double SCORE_LEVEL = 8D;
 
 
@@ -92,6 +92,7 @@ public class BotConfig {
                 .gradientNormalizationThreshold(0.5)
                 .list()
                 .layer(new LSTM.Builder().activation(Activation.TANH).nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
+                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE / 2).build())
                 .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
                         .activation(Activation.SOFTMAX).nOut(OUTPUT_SIZE).build())
                 .build();
@@ -101,7 +102,8 @@ public class BotConfig {
     public MultiLayerNetwork getModel(Exchange exchange, MultiLayerConfiguration config) throws IOException {
         final String keyName = CURRENCY_PAIR.base + ".zip";
         final String path = FilenameUtils.concat(System.getProperty("java.io.tmpdir"), keyName);
-        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.HOURS);
+        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC)
+                .truncatedTo(ChronoUnit.HOURS).minusHours(1);
         final AmazonS3 s3 = AmazonS3ClientBuilder.standard().withRegion(Regions.EU_CENTRAL_1).build();
 
         MultiLayerNetwork net = new MultiLayerNetwork(config);
@@ -115,7 +117,7 @@ public class BotConfig {
             while (i >= 0) {
                 LocalDateTime startDate = now.minusSeconds(
                         i * (long) TRAIN_KLINES * KLINE_INTERVAL_TYPE.getSeconds()
-                                + TRAIN_KLINES  * KLINE_INTERVAL_TYPE.getSeconds());
+                                + TRAIN_KLINES * KLINE_INTERVAL_TYPE.getSeconds());
                 LocalDateTime endDate = now.minusSeconds(
                         i * (long) TRAIN_KLINES * KLINE_INTERVAL_TYPE.getSeconds()
                                 - PREDICT_DEEP * KLINE_INTERVAL_TYPE.getSeconds());

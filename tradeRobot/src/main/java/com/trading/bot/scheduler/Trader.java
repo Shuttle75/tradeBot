@@ -29,7 +29,7 @@ public class Trader {
     private BigDecimal firstPrice;
     private KucoinKline prevKline;
     private float[] predict;
-    private final LimitedQueue<BigDecimal> trendQueue = new LimitedQueue<>(4);
+    private final LimitedQueue<BigDecimal> trendQueue = new LimitedQueue<>(8);
 
     @Value("${trader.buylimit}")
     public float tradeLimit;
