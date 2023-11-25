@@ -58,14 +58,16 @@ public class KlinesController {
             if (floatResult[0] > 0.4) {
                 if (intLabels[0] > 0.4) {
                     goodSign++;
-                } else {
+                }
+                if (intLabels[2] > 0.4) {
                     wrongSign++;
                 }
             }
             if (floatResult[2] > 0.4) {
                 if (intLabels[2] > 0.4) {
                     goodSign++;
-                } else {
+                }
+                if (intLabels[0] > 0.4) {
                     wrongSign++;
                 }
             }
@@ -73,14 +75,16 @@ public class KlinesController {
             if (floatResult[0] > 0.8) {
                 if (intLabels[0] > 0.8) {
                     goodMark++;
-                } else {
+                }
+                if (intLabels[2] > 0.8) {
                     wrongMark++;
                 }
             }
             if (floatResult[2] > 0.8) {
                 if (intLabels[2] > 0.8) {
                     goodMark++;
-                } else {
+                }
+                if (intLabels[0] > 0.8) {
                     wrongMark++;
                 }
             }
