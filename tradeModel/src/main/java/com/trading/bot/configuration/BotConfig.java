@@ -54,7 +54,7 @@ public class BotConfig {
     public static final int PREDICT_DEEP = 3;
     public static final float DELTA_PRICE = 2F;
     public static final float NORMAL = 0.004F;
-    public static final double SCORE_LEVEL = 3.2D;
+    public static final double SCORE_DEEP = 1000D;
 
 
     @Value("${model.bucket}")
@@ -140,7 +140,8 @@ public class BotConfig {
             }
 
             net.fit(indData, indLabels);
-            while (net.score() > SCORE_LEVEL) {
+            double initScore = net.score();
+            while (net.score() > initScore / SCORE_DEEP) {
                 net.fit(indData, indLabels);
             }
         }

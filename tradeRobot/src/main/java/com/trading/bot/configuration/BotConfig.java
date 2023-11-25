@@ -36,7 +36,7 @@ public class BotConfig {
     public static final int PREDICT_DEEP = 3;
     public static final float DELTA_PRICE = 2F;
     public static final float NORMAL = 0.004F;
-    public static final int TREND_QUEUE = 4;
+    public static final int TREND_QUEUE = 7;
 
     @Value("${model.bucket}")
     public String bucketName;

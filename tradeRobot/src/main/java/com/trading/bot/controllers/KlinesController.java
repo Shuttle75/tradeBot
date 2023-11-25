@@ -38,31 +38,32 @@ public class KlinesController {
         int goodSign = 0;
         int wrongSign = 0;
         final long startDate = LocalDateTime.now(ZoneOffset.UTC)
-                .truncatedTo(ChronoUnit.DAYS)
-                .minusMinutes(600)
+                .truncatedTo(ChronoUnit.HOURS)
+                .minusDays(1)
                 .toEpochSecond(ZoneOffset.UTC);
         final long endDate = LocalDateTime.now(ZoneOffset.UTC)
-                .truncatedTo(ChronoUnit.DAYS)
-                .minusMinutes(0)
+                .truncatedTo(ChronoUnit.HOURS)
                 .toEpochSecond(ZoneOffset.UTC);
 
         final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
         Collections.reverse(kucoinKlines);
 
+        net.rnnClearPreviousState();
+
         List<String> listResult = new ArrayList<>();
-        for (int i = 0; i < kucoinKlines.size() - TRAIN_KLINES - PREDICT_DEEP; i++) {
+        for (int i = 0; i < kucoinKlines.size() - PREDICT_DEEP; i++) {
             float[] floatResult = getOneMinutePredict(kucoinKlines.get(i), net);
             int[] intLabels = new int[OUTPUT_SIZE];
             intLabels[getDelta(kucoinKlines, i)] = 1;
-            if (floatResult[0] + floatResult[1] > 0.4) {
-                if (intLabels[0] + intLabels[1] > 0.4) {
+            if (floatResult[0] > 0.4) {
+                if (intLabels[0] > 0.4) {
                     goodSign++;
                 } else {
                     wrongSign++;
                 }
             }
-            if (floatResult[3] + floatResult[4] > 0.4) {
-                if (intLabels[3] + intLabels[4] > 0.4) {
+            if (floatResult[2] > 0.4) {
+                if (intLabels[2] > 0.4) {
                     goodSign++;
                 } else {
                     wrongSign++;
@@ -76,25 +77,21 @@ public class KlinesController {
                     wrongMark++;
                 }
             }
-            if (floatResult[4] > 0.8) {
-                if (intLabels[4] > 0.8) {
+            if (floatResult[2] > 0.8) {
+                if (intLabels[2] > 0.8) {
                     goodMark++;
                 } else {
                     wrongMark++;
                 }
             }
 
-            if (floatResult[0] > 0.8 || floatResult[4] > 0.8) {
+            if (intLabels[0] == 1 || intLabels[2] == 1) {
                 listResult.add(intLabels[0] + "    " +
                         intLabels[1] + "    " +
-                        intLabels[2] + "    " +
-                        intLabels[3] + "    " +
-                        intLabels[4] + "    ");
+                        intLabels[2] + "    ");
                 listResult.add(String.format("%.2f", floatResult[0]) + " " +
                         String.format("%.2f", floatResult[1]) + " " +
-                        String.format("%.2f", floatResult[2]) + " " +
-                        String.format("%.2f", floatResult[3]) + " " +
-                        String.format("%.2f", floatResult[4]));
+                        String.format("%.2f", floatResult[2]));
                 listResult.add("-----------------------------------------");
             }
         }

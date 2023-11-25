@@ -65,7 +65,7 @@ public class Trader {
         List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
         KucoinKline lastKline = kucoinKlines.get(0);
 
-        boolean lessThenPrev = lastKline.getClose().compareTo(prevKline.getLow()) < 0;
+        boolean lessThenPrev = lastKline.getClose().compareTo(prevKline.getOpen()) < 0;
         boolean lessThenDelta = lastKline.getOpen()
                 .subtract(lastKline.getClose())
                 .compareTo(lastKline.getClose().movePointLeft(3)) > 0;
