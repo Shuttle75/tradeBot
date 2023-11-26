@@ -3,8 +3,6 @@ package com.trading.bot.controllers;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -22,7 +20,6 @@ import static com.trading.bot.util.TradeUtil.*;
 @RestController
 public class KlinesController {
     /** Logger. */
-    protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     private final Exchange exchange;
     private final MultiLayerNetwork net;
 
@@ -37,7 +34,7 @@ public class KlinesController {
         int wrongMark = 0;
         final long startDate = LocalDateTime.now(ZoneOffset.UTC)
             .truncatedTo(ChronoUnit.DAYS)
-            .minusDays(2)
+            .minusDays(5)
             .toEpochSecond(ZoneOffset.UTC);
         final long endDate = LocalDateTime.now(ZoneOffset.UTC)
             .truncatedTo(ChronoUnit.DAYS)

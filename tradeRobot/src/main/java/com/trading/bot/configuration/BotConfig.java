@@ -33,8 +33,8 @@ public class BotConfig {
     public static final int OUTPUT_SIZE = 3;
     public static final KlineIntervalType KLINE_INTERVAL_TYPE = min5;
     public static final int PREDICT_DEEP = 3;
-    public static final float DELTA_PRICE = 2F;
-    public static final float NORMAL = 0.004F;
+    public static final float DELTA_PRICE = 3F;
+    public static final float NORMAL = 0.003F;
     public static final int TREND_QUEUE = 5;
 
     @Value("${model.bucket}")
