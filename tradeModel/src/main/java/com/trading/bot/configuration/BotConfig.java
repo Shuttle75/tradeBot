@@ -48,7 +48,7 @@ public class BotConfig {
     public static final int INPUT_SIZE = 4;
     public static final int LAYER_SIZE = 24;
     public static final int OUTPUT_SIZE = 3;
-    public static final int TRAIN_EXAMPLES = 7;
+    public static final int TRAIN_EXAMPLES = 56;
     public static final int TRAIN_KLINES = 288;
     public static final KlineIntervalType KLINE_INTERVAL_TYPE = min5;
     public static final int PREDICT_DEEP = 3;
