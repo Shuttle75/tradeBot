@@ -28,7 +28,7 @@ public class Trader {
     private final MultiLayerNetwork net;
     private boolean purchased;
     private BigDecimal firstPrice;
-    private BigDecimal maxPrice;
+    private BigDecimal maxPrice = new BigDecimal(0);
     private KucoinKline prevKline;
     private float[] predict;
     private final LimitedQueue<BigDecimal> trendQueue = new LimitedQueue<>(TREND_QUEUE);
