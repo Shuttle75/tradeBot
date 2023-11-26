@@ -31,12 +31,11 @@ public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int INPUT_SIZE = 4;
     public static final int OUTPUT_SIZE = 3;
-    public static final int TRAIN_KLINES = 180;
     public static final KlineIntervalType KLINE_INTERVAL_TYPE = min5;
     public static final int PREDICT_DEEP = 3;
     public static final float DELTA_PRICE = 2F;
     public static final float NORMAL = 0.004F;
-    public static final int TREND_QUEUE = 7;
+    public static final int TREND_QUEUE = 5;
 
     @Value("${model.bucket}")
     public String bucketName;
@@ -63,7 +62,7 @@ public class BotConfig {
     }
 
     @Bean
-    public MultiLayerNetwork getModel(Exchange exchange) throws IOException {
+    public MultiLayerNetwork getModel() throws IOException {
         final String keyName = CURRENCY_PAIR.base + ".zip";
         final String path = FilenameUtils.concat(System.getProperty("java.io.tmpdir"), keyName);
         final AmazonS3 s3 = AmazonS3ClientBuilder.standard()

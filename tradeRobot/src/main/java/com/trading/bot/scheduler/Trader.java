@@ -28,6 +28,7 @@ public class Trader {
     private final MultiLayerNetwork net;
     private boolean purchased;
     private BigDecimal firstPrice;
+    private BigDecimal maxPrice;
     private KucoinKline prevKline;
     private float[] predict;
     private final LimitedQueue<BigDecimal> trendQueue = new LimitedQueue<>(TREND_QUEUE);
@@ -65,11 +66,10 @@ public class Trader {
         List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
         KucoinKline lastKline = kucoinKlines.get(0);
 
-        boolean lessThenPrev = lastKline.getClose().compareTo(prevKline.getOpen()) < 0;
-        boolean lessThenDelta = lastKline.getOpen()
+        boolean lessThenPrev = lastKline.getClose().compareTo(prevKline.getLow()) < 0;
+        boolean lessThenDelta = maxPrice
                 .subtract(lastKline.getClose())
                 .compareTo(lastKline.getClose().movePointLeft(3)) > 0;
-
 
         trendQueue.add(lastKline.getClose());
 
@@ -77,7 +77,8 @@ public class Trader {
                 && predict[2] > tradeLimit
                 && trendQueue.trendIsUp()) {
             firstPrice = lastKline.getClose();
-            logger.info("BUY {} Price {}", curAccount, prevKline.getClose());
+            maxPrice = lastKline.getClose();
+            logger.info("BUY {} Price {}", curAccount, lastKline.getClose());
             purchased = true;
             return;
         }
@@ -90,6 +91,10 @@ public class Trader {
             logger.info("SELL {} firstPrice {} newPrice {}", curAccount, firstPrice, lastKline.getClose());
             predict = new float[] {0F, 0F, 0F};
             purchased = false;
+        } else {
+            if (lastKline.getClose().compareTo(maxPrice) > 0) {
+                maxPrice = lastKline.getClose();
+            }
         }
     }
 
