@@ -41,13 +41,13 @@ public class KlinesController {
             .minusDays(1)
             .toEpochSecond(ZoneOffset.UTC);
 
-        final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
+        final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate, KLINE_INTERVAL_TYPE);
         Collections.reverse(kucoinKlines);
 
         net.rnnClearPreviousState();
 
         List<String> listResult = new ArrayList<>();
-        for (int i = 0; i < kucoinKlines.size() - PREDICT_DEEP; i++) {
+        for (int i = 0; i < kucoinKlines.size() - PREDICT_UP; i++) {
             float[] floatResult = getOneMinutePredict(kucoinKlines.get(i), net);
             int[] intLabels = new int[OUTPUT_SIZE];
             intLabels[getDelta(kucoinKlines, i)] = 1;

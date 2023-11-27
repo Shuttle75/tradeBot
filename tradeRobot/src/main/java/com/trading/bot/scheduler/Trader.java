@@ -15,8 +15,10 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 
+import static com.trading.bot.configuration.BotConfig.KLINE_INTERVAL_TYPE;
 import static com.trading.bot.configuration.BotConfig.TREND_QUEUE;
 import static com.trading.bot.util.TradeUtil.*;
 import static java.util.Objects.isNull;
@@ -48,7 +50,7 @@ public class Trader {
     @Scheduled(cron = "30 */5 * * * *")
     public void predict() throws IOException {
         final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(30).toEpochSecond(ZoneOffset.UTC);
-        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
+        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L, KLINE_INTERVAL_TYPE);
         prevKline = kucoinKlines.get(1);
         predict = getOneMinutePredict(prevKline, net);
         String rates = printRates(predict);
@@ -63,19 +65,13 @@ public class Trader {
         }
 
         final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(30).toEpochSecond(ZoneOffset.UTC);
-        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
+        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L, KLINE_INTERVAL_TYPE);
         KucoinKline lastKline = kucoinKlines.get(0);
 
-        boolean lessThenPrev = lastKline.getClose().compareTo(prevKline.getLow()) < 0;
-        boolean lessThenDelta = maxPrice
-                .subtract(lastKline.getClose())
-                .compareTo(lastKline.getClose().movePointLeft(3)) > 0;
-
+        double lastDelta = lastKline.getClose().subtract(lastKline.getOpen()).doubleValue();
         trendQueue.add(lastKline.getClose());
 
-        if (!purchased
-                && predict[2] > tradeLimit
-                && trendQueue.trendIsUp()) {
+        if (!purchased && predict[2] > tradeLimit) {
             firstPrice = lastKline.getClose();
             maxPrice = lastKline.getClose();
             logger.info("BUY {} Price {}", curAccount, lastKline.getClose());
@@ -84,9 +80,7 @@ public class Trader {
         }
 
         if (purchased &&
-                ((predict[2] < tradeLimit && lessThenPrev)
-                        || (predict[0] > tradeLimit && trendQueue.trendIsDown())
-                        || lessThenDelta)) {
+                (trendQueue.trendDown(BigDecimal::doubleValue, lastDelta) || (predict[0] > tradeLimit))) {
             curAccount = curAccount.multiply(lastKline.getClose()).divide(firstPrice, 2, RoundingMode.HALF_UP);
             logger.info("SELL {} firstPrice {} newPrice {}", curAccount, firstPrice, lastKline.getClose());
             predict = new float[] {0F, 0F, 0F};
@@ -115,22 +109,11 @@ public class Trader {
             return added;
         }
 
-        public boolean trendIsUp() {
-            List<E> sorted = this.stream()
-                    .sorted()
-                    .collect(Collectors.toList());
-
-            return size() == limit && sorted.equals(new ArrayList<>(this));
-        }
-
-        public boolean trendIsDown() {
-            List<E> sorted = this.stream()
-                    .sorted()
-                    .collect(Collectors.toList());
-
-            Collections.reverse(sorted);
-
-            return size() == limit && sorted.equals(new ArrayList<>(this));
+        public boolean trendDown(ToDoubleFunction<E> toDoubleFunction, double lastDelta) {
+            if (size() < limit) {
+                return false;
+            }
+            return (this.stream().mapToDouble(toDoubleFunction).sum() + lastDelta) < 0;
         }
     }
 }

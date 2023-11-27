@@ -32,10 +32,11 @@ public class BotConfig {
     public static final int INPUT_SIZE = 4;
     public static final int OUTPUT_SIZE = 3;
     public static final KlineIntervalType KLINE_INTERVAL_TYPE = min5;
-    public static final int PREDICT_DEEP = 3;
-    public static final float DELTA_PRICE = 3F;
+    public static final int PREDICT_UP = 4;
+    public static final int PREDICT_DOWN = 2;
+    public static final float DELTA_PRICE = 4F;
     public static final float NORMAL = 0.003F;
-    public static final int TREND_QUEUE = 5;
+    public static final int TREND_QUEUE = 3;
 
     @Value("${model.bucket}")
     public String bucketName;
