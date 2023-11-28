@@ -13,29 +13,37 @@ import org.knowm.xchange.ExchangeFactory;
 import org.knowm.xchange.ExchangeSpecification;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.kucoin.KucoinExchange;
-import org.knowm.xchange.kucoin.dto.KlineIntervalType;
+import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.ta4j.core.BarSeries;
+import org.ta4j.core.BaseBarSeries;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
+import java.util.Collections;
+import java.util.List;
 
+import static com.trading.bot.util.TradeUtil.getKucoinKlines;
+import static com.trading.bot.util.TradeUtil.loadBarSeries;
 import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
 
 @Configuration
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
-    public static final int INPUT_SIZE = 4;
+    public static final int INPUT_SIZE = 5;
     public static final int OUTPUT_SIZE = 3;
-    public static final KlineIntervalType KLINE_INTERVAL_TYPE = min5;
-    public static final int PREDICT_UP = 4;
-    public static final int PREDICT_DOWN = 2;
-    public static final float DELTA_PRICE = 4F;
-    public static final float NORMAL = 0.003F;
+    public static final float DELTA_PERCENT = 7;
+    public static final int RSI_INDICATOR = 25;
+    public static final int FUTURE_PREDICT = 4;
+    public static final float NORMAL = 0.01F;
     public static final int TREND_QUEUE = 3;
 
     @Value("${model.bucket}")
@@ -94,5 +102,23 @@ public class BotConfig {
         net.rnnClearPreviousState();
 
         return net;
+    }
+
+    @Bean
+    public BarSeries getBarSeries(Exchange exchange) throws IOException {
+        BarSeries barSeries = new BaseBarSeries();
+        final long startDate = LocalDateTime.now(ZoneOffset.UTC)
+                .minusDays(4)
+                .toEpochSecond(ZoneOffset.UTC);
+        final long endDate = LocalDateTime.now(ZoneOffset.UTC)
+                .truncatedTo(ChronoUnit.MINUTES)
+                .minusMinutes(10)
+                .toEpochSecond(ZoneOffset.UTC);
+
+        final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate, min5);
+        Collections.reverse(kucoinKlines);
+        kucoinKlines.forEach(kucoinKline -> loadBarSeries(barSeries, kucoinKline));
+
+        return barSeries;
     }
 }

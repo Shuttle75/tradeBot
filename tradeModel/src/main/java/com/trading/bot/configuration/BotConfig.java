@@ -18,7 +18,6 @@ import org.knowm.xchange.ExchangeFactory;
 import org.knowm.xchange.ExchangeSpecification;
 import org.knowm.xchange.currency.CurrencyPair;
 import org.knowm.xchange.kucoin.KucoinExchange;
-import org.knowm.xchange.kucoin.dto.KlineIntervalType;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.nd4j.linalg.activations.Activation;
 import org.nd4j.linalg.api.ndarray.INDArray;
@@ -32,7 +31,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseBarSeries;
-import org.ta4j.core.indicators.EMAIndicator;
 import org.ta4j.core.indicators.RSIIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 
@@ -49,17 +47,16 @@ import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
 @Configuration
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
-    public static final int INPUT_SIZE = 8;
-    public static final int TRAIN_SIZE = 30;
+    public static final int INPUT_SIZE = 5;
+    public static final int LAYER_SIZE = 200;
     public static final int OUTPUT_SIZE = 3;
     public static final int TRAIN_EXAMPLES = 28;
     public static final int TRAIN_KLINES = 288;
-    public static final KlineIntervalType KLINE_INTERVAL_TYPE = min5;
-    public static final int INDICATOR_HISTORY = 150;
-    public static final int PREDICT_UP = 4;
-    public static final int PREDICT_DOWN = 2;
-    public static final float DELTA_PRICE = 4F;
-    public static final float NORMAL = 0.02F;
+    public static final float DELTA_PERCENT = 7;
+    public static final int RSI_INDICATOR = 25;
+    public static final int FUTURE_PREDICT = 4;
+    public static final int HISTORY_INDICATOR = 100;
+    public static final float NORMAL = 0.01F;
 
     @Value("${model.bucket}")
     public String bucketName;
@@ -95,8 +92,8 @@ public class BotConfig {
                 .gradientNormalization(GradientNormalization.ClipElementWiseAbsoluteValue)  //Not always required, but helps with this data set
                 .gradientNormalizationThreshold(0.5)
                 .list()
-                .layer(new LSTM.Builder().activation(Activation.TANH).nIn(INPUT_SIZE).nOut(TRAIN_SIZE * INPUT_SIZE).build())
-                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(TRAIN_SIZE * INPUT_SIZE).build())
+                .layer(new LSTM.Builder().activation(Activation.TANH).nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
+                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE / 2).build())
                 .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
                         .activation(Activation.SOFTMAX).nOut(OUTPUT_SIZE).build())
                 .build();
@@ -121,39 +118,32 @@ public class BotConfig {
             while (i >= 0) {
                 BarSeries barSeries = new BaseBarSeries();
                 ClosePriceIndicator closePrice = new ClosePriceIndicator(barSeries);
-                EMAIndicator emaF = new EMAIndicator(closePrice, 20);
-                EMAIndicator emaM = new EMAIndicator(closePrice, 100);
-                EMAIndicator emaS = new EMAIndicator(closePrice, 150);
-                RSIIndicator rsi = new RSIIndicator(closePrice, 12);
+                RSIIndicator rsiIndicator = new RSIIndicator(closePrice, RSI_INDICATOR);
 
                 LocalDateTime startDate = now.minusSeconds(
-                        i * (long) TRAIN_KLINES * KLINE_INTERVAL_TYPE.getSeconds()
-                                + TRAIN_KLINES * KLINE_INTERVAL_TYPE.getSeconds()
-                                + INDICATOR_HISTORY * KLINE_INTERVAL_TYPE.getSeconds());
+                        i * (long) TRAIN_KLINES * min5.getSeconds()
+                                + TRAIN_KLINES * min5.getSeconds()
+                                + HISTORY_INDICATOR * min5.getSeconds());
                 LocalDateTime endDate = now.minusSeconds(
-                        i * (long) TRAIN_KLINES * KLINE_INTERVAL_TYPE.getSeconds()
-                                - PREDICT_UP * KLINE_INTERVAL_TYPE.getSeconds());
+                        i * (long) TRAIN_KLINES * min5.getSeconds()
+                                - FUTURE_PREDICT * min5.getSeconds());
 
                 List<KucoinKline> kucoinKlines =
                         getKucoinKlines(
                                 exchange,
                                 startDate.toEpochSecond(ZoneOffset.UTC),
                                 endDate.toEpochSecond(ZoneOffset.UTC),
-                                KLINE_INTERVAL_TYPE);
+                                min5);
                 Collections.reverse(kucoinKlines);
 
                 logger.info("startDate {} endDate {}", startDate, endDate);
 
-                for (int y = 0; y < INDICATOR_HISTORY + TRAIN_KLINES; y++) {
-                    loadBarSeries(barSeries, kucoinKlines, y);
+                kucoinKlines.forEach(kucoinKline -> loadBarSeries(barSeries, kucoinKline));
 
-                    if (y >= INDICATOR_HISTORY) {
-                        calcData(indData, kucoinKlines.get(y), i, y - INDICATOR_HISTORY,
-                                emaF.getValue(y).minus(emaF.getValue(y - 1)),
-                                emaM.getValue(y).minus(emaM.getValue(y - 1)),
-                                emaS.getValue(y).minus(emaS.getValue(y - 1)),
-                                rsi.getValue(y));
-                        indLabels.putScalar(new int[]{i, getDelta(kucoinKlines, y), y - INDICATOR_HISTORY}, 1);
+                for (int y = 0; y < HISTORY_INDICATOR + TRAIN_KLINES; y++) {
+                    if (y >= HISTORY_INDICATOR) {
+                        calcData(indData, kucoinKlines.get(y), i, y - HISTORY_INDICATOR, rsiIndicator);
+                        indLabels.putScalar(new int[]{i, getDelta(rsiIndicator, y), y - HISTORY_INDICATOR}, 1);
                     }
                 }
 

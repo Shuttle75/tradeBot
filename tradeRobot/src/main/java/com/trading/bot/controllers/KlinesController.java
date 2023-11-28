@@ -5,6 +5,9 @@ import org.knowm.xchange.Exchange;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.ta4j.core.BarSeries;
+import org.ta4j.core.indicators.RSIIndicator;
+import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -16,20 +19,25 @@ import java.util.List;
 
 import static com.trading.bot.configuration.BotConfig.*;
 import static com.trading.bot.util.TradeUtil.*;
+import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
 
 @RestController
 public class KlinesController {
     /** Logger. */
     private final Exchange exchange;
     private final MultiLayerNetwork net;
+    private final BarSeries barSeries;
+    private final RSIIndicator rsiIndicator;
 
-    public KlinesController(Exchange exchange, MultiLayerNetwork net) {
+    public KlinesController(Exchange exchange, MultiLayerNetwork net, BarSeries barSeries) {
         this.exchange = exchange;
         this.net = net;
+        this.barSeries = barSeries;
+        rsiIndicator = new RSIIndicator(new ClosePriceIndicator(barSeries), RSI_INDICATOR);
     }
 
     @GetMapping(path = "predict")
-    public List<String> getPredict() throws IOException {
+    public List<String> checkPredict() throws IOException {
         int goodMark = 0;
         int wrongMark = 0;
         final long startDate = LocalDateTime.now(ZoneOffset.UTC)
@@ -41,16 +49,17 @@ public class KlinesController {
             .minusDays(1)
             .toEpochSecond(ZoneOffset.UTC);
 
-        final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate, KLINE_INTERVAL_TYPE);
+        final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate, min5);
         Collections.reverse(kucoinKlines);
 
         net.rnnClearPreviousState();
 
         List<String> listResult = new ArrayList<>();
-        for (int i = 0; i < kucoinKlines.size() - PREDICT_UP; i++) {
-            float[] floatResult = getOneMinutePredict(kucoinKlines.get(i), net);
+        for (int i = 0; i < kucoinKlines.size() - FUTURE_PREDICT; i++) {
+            loadBarSeries(barSeries, kucoinKlines.get(i));
+            float[] floatResult = getPredict(kucoinKlines.get(i), net, rsiIndicator);
             int[] intLabels = new int[OUTPUT_SIZE];
-            intLabels[getDelta(kucoinKlines, i)] = 1;
+            intLabels[getDelta(rsiIndicator, i)] = 1;
 
             if (intLabels[0] == 1) {
                 if (floatResult[0] > 0.7) {
