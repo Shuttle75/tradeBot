@@ -8,9 +8,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.ta4j.core.BarSeries;
-import org.ta4j.core.indicators.RSIIndicator;
-import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -20,11 +17,9 @@ import java.time.ZoneOffset;
 import java.util.*;
 import java.util.function.ToDoubleFunction;
 
-import static com.trading.bot.configuration.BotConfig.RSI_INDICATOR;
 import static com.trading.bot.configuration.BotConfig.TREND_QUEUE;
 import static com.trading.bot.util.TradeUtil.*;
 import static java.util.Objects.isNull;
-import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
 
 @Service
 public class Trader {
@@ -33,12 +28,9 @@ public class Trader {
     private final MultiLayerNetwork net;
     private boolean purchased;
     private BigDecimal firstPrice;
-    private float lastRsiIndicator = 100F;
     private KucoinKline prevKline;
     private float[] predict;
     private final LimitedQueue<BigDecimal> trendQueue = new LimitedQueue<>(TREND_QUEUE);
-    private final BarSeries barSeries;
-    private final RSIIndicator rsiIndicator;
 
     @Value("${trader.buylimit}")
     public float tradeLimit;
@@ -47,21 +39,19 @@ public class Trader {
     // Only for test !!!!!!!!!!!!!
     private BigDecimal curAccount = BigDecimal.valueOf(10000.0F);
 
-    public Trader(Exchange exchange, MultiLayerNetwork net, BarSeries barSeries) {
+    public Trader(Exchange exchange, MultiLayerNetwork net) {
         this.exchange = exchange;
         this.net = net;
-        this.barSeries = barSeries;
-        rsiIndicator = new RSIIndicator(new ClosePriceIndicator(barSeries), RSI_INDICATOR);
     }
 
     @Scheduled(cron = "30 */5 * * * *")
     public void predict() throws IOException {
         final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(30).toEpochSecond(ZoneOffset.UTC);
-        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L, min5);
+        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
         prevKline = kucoinKlines.get(1);
-        loadBarSeries(barSeries, prevKline);
-        lastRsiIndicator = rsiIndicator.getValue(barSeries.getEndIndex()).floatValue();
-        predict = getPredict(prevKline, net, rsiIndicator.getValue(barSeries.getEndIndex()));
+
+
+        predict = getPredict(prevKline, net);
         String rates = printRates(predict);
         logger.info("{}", rates);
         trendQueue.clear();
@@ -74,15 +64,14 @@ public class Trader {
         }
 
         final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(30).toEpochSecond(ZoneOffset.UTC);
-        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L, min5);
+        List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
         KucoinKline lastKline = kucoinKlines.get(0);
 
         double lastDelta = lastKline.getClose().subtract(lastKline.getOpen()).doubleValue();
         trendQueue.add(lastKline.getClose().subtract(lastKline.getOpen()));
 
         if (!purchased
-                && predict[2] > tradeLimit
-                && lastRsiIndicator < 70F) {
+                && predict[2] > tradeLimit) {
             firstPrice = lastKline.getClose();
             logger.info("BUY {} Price {}", curAccount, lastKline.getClose());
             purchased = true;
@@ -90,7 +79,6 @@ public class Trader {
         }
 
         if (purchased
-                && lastRsiIndicator > 30F
                 && (trendQueue.trendDown(BigDecimal::doubleValue, lastDelta) || (predict[0] > tradeLimit))) {
             curAccount = curAccount.multiply(lastKline.getClose()).divide(firstPrice, 2, RoundingMode.HALF_UP);
             logger.info("SELL {} firstPrice {} newPrice {}", curAccount, firstPrice, lastKline.getClose());

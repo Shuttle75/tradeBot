@@ -29,14 +29,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.ta4j.core.BarSeries;
-import org.ta4j.core.BaseBarSeries;
-import org.ta4j.core.indicators.RSIIndicator;
-import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 
 import java.io.File;
 import java.io.IOException;
-import java.time.*;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
@@ -47,16 +44,14 @@ import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
 @Configuration
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
-    public static final int INPUT_SIZE = 5;
-    public static final int LAYER_SIZE = 200;
+    public static final int INPUT_SIZE = 4;
+    public static final int LAYER_SIZE = 160;
     public static final int OUTPUT_SIZE = 3;
     public static final int TRAIN_EXAMPLES = 28;
     public static final int TRAIN_KLINES = 288;
-    public static final float DELTA_PERCENT = 16;
-    public static final int RSI_INDICATOR = 25;
-    public static final int FUTURE_PREDICT = 8;
-    public static final int HISTORY_INDICATOR = 100;
-    public static final float NORMAL = 0.01F;
+    public static final int PREDICT_DEEP = 4;
+    public static final float DELTA_PRICE = 4F;
+    public static final float NORMAL = 0.02F;
 
     @Value("${model.bucket}")
     public String bucketName;
@@ -94,7 +89,6 @@ public class BotConfig {
                 .list()
                 .layer(new LSTM.Builder().activation(Activation.TANH).nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
                 .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE).build())
-                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE).build())
                 .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
                         .activation(Activation.SOFTMAX).nOut(OUTPUT_SIZE).build())
                 .build();
@@ -105,7 +99,7 @@ public class BotConfig {
         final String keyName = CURRENCY_PAIR.base + ".zip";
         final String path = FilenameUtils.concat(System.getProperty("java.io.tmpdir"), keyName);
         final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC)
-                .truncatedTo(ChronoUnit.HOURS).minusHours(2);
+                .truncatedTo(ChronoUnit.HOURS).minusHours(1);
         final AmazonS3 s3 = AmazonS3ClientBuilder.standard().withRegion(Regions.EU_CENTRAL_1).build();
 
         MultiLayerNetwork net = new MultiLayerNetwork(config);
@@ -117,35 +111,25 @@ public class BotConfig {
 
             int i = TRAIN_EXAMPLES - 1;
             while (i >= 0) {
-                BarSeries barSeries = new BaseBarSeries();
-                ClosePriceIndicator closePrice = new ClosePriceIndicator(barSeries);
-                RSIIndicator rsiIndicator = new RSIIndicator(closePrice, RSI_INDICATOR);
-
                 LocalDateTime startDate = now.minusSeconds(
                         i * (long) TRAIN_KLINES * min5.getSeconds()
-                                + TRAIN_KLINES * min5.getSeconds()
-                                + HISTORY_INDICATOR * min5.getSeconds());
+                                + TRAIN_KLINES * min5.getSeconds());
                 LocalDateTime endDate = now.minusSeconds(
                         i * (long) TRAIN_KLINES * min5.getSeconds()
-                                - FUTURE_PREDICT * min5.getSeconds());
+                                - PREDICT_DEEP * min5.getSeconds());
 
                 List<KucoinKline> kucoinKlines =
                         getKucoinKlines(
                                 exchange,
                                 startDate.toEpochSecond(ZoneOffset.UTC),
-                                endDate.toEpochSecond(ZoneOffset.UTC),
-                                min5);
+                                endDate.toEpochSecond(ZoneOffset.UTC));
                 Collections.reverse(kucoinKlines);
 
                 logger.info("startDate {} endDate {}", startDate, endDate);
 
-                kucoinKlines.forEach(kucoinKline -> loadBarSeries(barSeries, kucoinKline));
-
-                for (int y = 0; y < HISTORY_INDICATOR + TRAIN_KLINES; y++) {
-                    if (y >= HISTORY_INDICATOR) {
-                        calcData(indData, kucoinKlines.get(y), i, y - HISTORY_INDICATOR, rsiIndicator.getValue(y));
-                        indLabels.putScalar(new int[]{i, getDelta(rsiIndicator, y), y - HISTORY_INDICATOR}, 1);
-                    }
+                for (int y = 0; y < TRAIN_KLINES; y++) {
+                    calcData(indData, kucoinKlines.get(y), i, y);
+                    indLabels.putScalar(new int[]{i, getDelta(kucoinKlines, y), y}, 1);
                 }
 
                 i--;
@@ -168,6 +152,4 @@ public class BotConfig {
 
         return net;
     }
-
-
 }
