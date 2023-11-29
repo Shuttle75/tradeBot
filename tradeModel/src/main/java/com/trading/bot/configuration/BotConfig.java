@@ -47,10 +47,10 @@ public class BotConfig {
     public static final int INPUT_SIZE = 4;
     public static final int LAYER_SIZE = 120;
     public static final int OUTPUT_SIZE = 3;
-    public static final int TRAIN_EXAMPLES = 90;
+    public static final int TRAIN_EXAMPLES = 84;
     public static final int TRAIN_KLINES = 288;
     public static final int PREDICT_DEEP = 4;
-    public static final float DELTA_PRICE = 4F;
+    public static final float DELTA_PRICE = 3F;
     public static final float NORMAL = 0.01F;
 
     @Value("${model.bucket}")

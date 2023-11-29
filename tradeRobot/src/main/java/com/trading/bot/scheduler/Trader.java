@@ -8,18 +8,26 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.ta4j.core.BarSeries;
+import org.ta4j.core.BaseBarSeries;
+import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.indicators.MACDIndicator;
+import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 
+import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.function.ToDoubleFunction;
 
 import static com.trading.bot.configuration.BotConfig.TREND_QUEUE;
 import static com.trading.bot.util.TradeUtil.*;
 import static java.util.Objects.isNull;
+import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
 
 @Service
 public class Trader {
@@ -30,7 +38,11 @@ public class Trader {
     private BigDecimal firstPrice;
     private KucoinKline prevKline;
     private float[] predict;
-    private final LimitedQueue<BigDecimal> trendQueue = new LimitedQueue<>(TREND_QUEUE);
+    private final LimitedQueue<BigDecimal> trendQueue;
+    private final BarSeries barSeries;
+    private final MACDIndicator macdLine;
+    private final EMAIndicator signalLine;
+    private float macdHistogramValue;
 
     @Value("${trader.buylimit}")
     public float tradeLimit;
@@ -42,6 +54,21 @@ public class Trader {
     public Trader(Exchange exchange, MultiLayerNetwork net) {
         this.exchange = exchange;
         this.net = net;
+        trendQueue = new LimitedQueue<>(TREND_QUEUE);
+        barSeries = new BaseBarSeries();
+        macdLine = new MACDIndicator(new ClosePriceIndicator(barSeries));
+        signalLine = new EMAIndicator(macdLine,9);
+    }
+
+    @PostConstruct
+    public void postConstruct() throws IOException {
+        final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusDays(4).toEpochSecond(ZoneOffset.UTC);
+        final long endDate = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MINUTES)
+            .minusMinutes(5).toEpochSecond(ZoneOffset.UTC);
+
+        final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
+        Collections.reverse(kucoinKlines);
+        kucoinKlines.forEach(kucoinKline -> loadBarSeries(barSeries, kucoinKline));
     }
 
     @Scheduled(cron = "30 */5 * * * *")
@@ -50,6 +77,9 @@ public class Trader {
         List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
         prevKline = kucoinKlines.get(1);
 
+        loadBarSeries(barSeries, prevKline);
+        macdHistogramValue = macdLine.getValue(barSeries.getEndIndex())
+            .minus(signalLine.getValue(barSeries.getEndIndex())).floatValue();
 
         predict = getPredict(prevKline, net);
         String rates = printRates(predict);
@@ -71,8 +101,10 @@ public class Trader {
         trendQueue.add(lastKline.getClose().subtract(lastKline.getOpen()));
 
         if (!purchased
-                && predict[2] > tradeLimit) {
+                && predict[2] > tradeLimit
+                && macdHistogramValue < 0) {
             firstPrice = lastKline.getClose();
+            trendQueue.clear();
             logger.info("BUY {} Price {}", curAccount, lastKline.getClose());
             purchased = true;
             return;

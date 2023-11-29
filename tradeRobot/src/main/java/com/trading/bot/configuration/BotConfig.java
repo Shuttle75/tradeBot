@@ -29,7 +29,7 @@ public class BotConfig {
     public static final int INPUT_SIZE = 4;
     public static final int OUTPUT_SIZE = 3;
     public static final int PREDICT_DEEP = 4;
-    public static final float DELTA_PRICE = 4F;
+    public static final float DELTA_PRICE = 3F;
     public static final float NORMAL = 0.01F;
     public static final int TREND_QUEUE = 4;
 

@@ -7,9 +7,14 @@ import org.knowm.xchange.kucoin.dto.KlineIntervalType;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
+import org.ta4j.core.BarSeries;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.*;
 
 import static com.trading.bot.configuration.BotConfig.*;
@@ -60,6 +65,16 @@ public class TradeUtil {
                         kucoinKline.getOpen().subtract(kucoinKline.getLow()).floatValue() * NORMAL :
                         kucoinKline.getClose().subtract(kucoinKline.getLow()).floatValue() * NORMAL);
         indData.putScalar(new int[]{i, 3, y}, kucoinKline.getVolume().floatValue() * NORMAL);
+    }
+
+    public static void loadBarSeries(BarSeries barSeries, KucoinKline kucoinKlines) {
+        barSeries.addBar(Duration.ofMinutes(5L),
+                         ZonedDateTime.ofInstant(Instant.ofEpochSecond(kucoinKlines.getTime()), ZoneOffset.UTC),
+                         kucoinKlines.getOpen(),
+                         kucoinKlines.getHigh(),
+                         kucoinKlines.getLow(),
+                         kucoinKlines.getClose(),
+                         kucoinKlines.getVolume());
     }
 
     public static String printRates(float[] floatResult) {
