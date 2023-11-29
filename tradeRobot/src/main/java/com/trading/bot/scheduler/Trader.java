@@ -33,6 +33,7 @@ public class Trader {
     private final MultiLayerNetwork net;
     private boolean purchased;
     private BigDecimal firstPrice;
+    private float lastRsiIndicator = 100F;
     private KucoinKline prevKline;
     private float[] predict;
     private final LimitedQueue<BigDecimal> trendQueue = new LimitedQueue<>(TREND_QUEUE);
@@ -59,7 +60,8 @@ public class Trader {
         List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L, min5);
         prevKline = kucoinKlines.get(1);
         loadBarSeries(barSeries, prevKline);
-        predict = getPredict(prevKline, net, rsiIndicator);
+        lastRsiIndicator = rsiIndicator.getValue(barSeries.getEndIndex()).floatValue();
+        predict = getPredict(prevKline, net, rsiIndicator.getValue(barSeries.getEndIndex()));
         String rates = printRates(predict);
         logger.info("{}", rates);
         trendQueue.clear();
@@ -76,17 +78,20 @@ public class Trader {
         KucoinKline lastKline = kucoinKlines.get(0);
 
         double lastDelta = lastKline.getClose().subtract(lastKline.getOpen()).doubleValue();
-        trendQueue.add(lastKline.getClose());
+        trendQueue.add(lastKline.getClose().subtract(lastKline.getOpen()));
 
-        if (!purchased && predict[2] > tradeLimit) {
+        if (!purchased
+                && predict[2] > tradeLimit
+                && lastRsiIndicator < 70F) {
             firstPrice = lastKline.getClose();
             logger.info("BUY {} Price {}", curAccount, lastKline.getClose());
             purchased = true;
             return;
         }
 
-        if (purchased &&
-                (trendQueue.trendDown(BigDecimal::doubleValue, lastDelta) || (predict[0] > tradeLimit))) {
+        if (purchased
+                && lastRsiIndicator > 30F
+                && (trendQueue.trendDown(BigDecimal::doubleValue, lastDelta) || (predict[0] > tradeLimit))) {
             curAccount = curAccount.multiply(lastKline.getClose()).divide(firstPrice, 2, RoundingMode.HALF_UP);
             logger.info("SELL {} firstPrice {} newPrice {}", curAccount, firstPrice, lastKline.getClose());
             predict = new float[] {0F, 0F, 0F};

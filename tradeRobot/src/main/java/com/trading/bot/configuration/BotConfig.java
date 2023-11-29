@@ -40,11 +40,11 @@ public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int INPUT_SIZE = 5;
     public static final int OUTPUT_SIZE = 3;
-    public static final float DELTA_PERCENT = 7;
+    public static final float DELTA_PERCENT = 16;
     public static final int RSI_INDICATOR = 25;
-    public static final int FUTURE_PREDICT = 4;
+    public static final int FUTURE_PREDICT = 8;
     public static final float NORMAL = 0.01F;
-    public static final int TREND_QUEUE = 3;
+    public static final int TREND_QUEUE = 4;
 
     @Value("${model.bucket}")
     public String bucketName;

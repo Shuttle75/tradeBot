@@ -6,6 +6,7 @@ import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.ta4j.core.BarSeries;
+import org.ta4j.core.BaseBarSeries;
 import org.ta4j.core.indicators.RSIIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 
@@ -26,14 +27,10 @@ public class KlinesController {
     /** Logger. */
     private final Exchange exchange;
     private final MultiLayerNetwork net;
-    private final BarSeries barSeries;
-    private final RSIIndicator rsiIndicator;
 
-    public KlinesController(Exchange exchange, MultiLayerNetwork net, BarSeries barSeries) {
+    public KlinesController(Exchange exchange, MultiLayerNetwork net) {
         this.exchange = exchange;
         this.net = net;
-        this.barSeries = barSeries;
-        rsiIndicator = new RSIIndicator(new ClosePriceIndicator(barSeries), RSI_INDICATOR);
     }
 
     @GetMapping(path = "predict")
@@ -49,15 +46,18 @@ public class KlinesController {
             .minusDays(1)
             .toEpochSecond(ZoneOffset.UTC);
 
+        final BarSeries barSeries = new BaseBarSeries();
+        final RSIIndicator rsiIndicator = new RSIIndicator(new ClosePriceIndicator(barSeries), RSI_INDICATOR);
+
         final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate, min5);
         Collections.reverse(kucoinKlines);
+        kucoinKlines.forEach(kucoinKline -> loadBarSeries(barSeries, kucoinKline));
 
         net.rnnClearPreviousState();
 
         List<String> listResult = new ArrayList<>();
         for (int i = 0; i < kucoinKlines.size() - FUTURE_PREDICT; i++) {
-            loadBarSeries(barSeries, kucoinKlines.get(i));
-            float[] floatResult = getPredict(kucoinKlines.get(i), net, rsiIndicator);
+            float[] floatResult = getPredict(kucoinKlines.get(i), net, rsiIndicator.getValue(i));
             int[] intLabels = new int[OUTPUT_SIZE];
             intLabels[getDelta(rsiIndicator, i)] = 1;
 

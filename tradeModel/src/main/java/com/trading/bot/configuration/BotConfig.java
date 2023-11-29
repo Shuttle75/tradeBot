@@ -52,9 +52,9 @@ public class BotConfig {
     public static final int OUTPUT_SIZE = 3;
     public static final int TRAIN_EXAMPLES = 28;
     public static final int TRAIN_KLINES = 288;
-    public static final float DELTA_PERCENT = 7;
+    public static final float DELTA_PERCENT = 16;
     public static final int RSI_INDICATOR = 25;
-    public static final int FUTURE_PREDICT = 4;
+    public static final int FUTURE_PREDICT = 8;
     public static final int HISTORY_INDICATOR = 100;
     public static final float NORMAL = 0.01F;
 
@@ -93,7 +93,8 @@ public class BotConfig {
                 .gradientNormalizationThreshold(0.5)
                 .list()
                 .layer(new LSTM.Builder().activation(Activation.TANH).nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
-                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE / 2).build())
+                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE).build())
+                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE).build())
                 .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
                         .activation(Activation.SOFTMAX).nOut(OUTPUT_SIZE).build())
                 .build();
@@ -104,12 +105,12 @@ public class BotConfig {
         final String keyName = CURRENCY_PAIR.base + ".zip";
         final String path = FilenameUtils.concat(System.getProperty("java.io.tmpdir"), keyName);
         final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC)
-                .truncatedTo(ChronoUnit.HOURS).minusHours(1);
+                .truncatedTo(ChronoUnit.HOURS).minusHours(2);
         final AmazonS3 s3 = AmazonS3ClientBuilder.standard().withRegion(Regions.EU_CENTRAL_1).build();
 
         MultiLayerNetwork net = new MultiLayerNetwork(config);
         net.init();
-        net.setListeners(new ScoreIterationListener(100));
+        net.setListeners(new ScoreIterationListener(10));
 
         try (INDArray indData = Nd4j.zeros(TRAIN_EXAMPLES, INPUT_SIZE, TRAIN_KLINES);
              INDArray indLabels = Nd4j.zeros(TRAIN_EXAMPLES, OUTPUT_SIZE, TRAIN_KLINES)) {
@@ -142,7 +143,7 @@ public class BotConfig {
 
                 for (int y = 0; y < HISTORY_INDICATOR + TRAIN_KLINES; y++) {
                     if (y >= HISTORY_INDICATOR) {
-                        calcData(indData, kucoinKlines.get(y), i, y - HISTORY_INDICATOR, rsiIndicator);
+                        calcData(indData, kucoinKlines.get(y), i, y - HISTORY_INDICATOR, rsiIndicator.getValue(y));
                         indLabels.putScalar(new int[]{i, getDelta(rsiIndicator, y), y - HISTORY_INDICATOR}, 1);
                     }
                 }

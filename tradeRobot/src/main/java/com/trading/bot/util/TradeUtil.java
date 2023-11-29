@@ -30,10 +30,10 @@ public class TradeUtil {
                 .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, intervalType);
     }
 
-    public static float[] getPredict(KucoinKline kucoinKline, MultiLayerNetwork net, RSIIndicator rsi) {
+    public static float[] getPredict(KucoinKline kucoinKline, MultiLayerNetwork net, Num rsiIndicatorValue) {
         try (INDArray indData = Nd4j.zeros(1, INPUT_SIZE, 1)) {
 
-            calcData(indData, kucoinKline, 0, 0, rsi);
+            calcData(indData, kucoinKline, 0, 0, rsiIndicatorValue);
 
             return net.rnnTimeStep(indData).ravel().toFloatVector();
         }
@@ -42,16 +42,20 @@ public class TradeUtil {
     public static int getDelta(RSIIndicator rsiIndicator, int i) {
         Num delta = rsiIndicator.getValue(i + FUTURE_PREDICT).minus(rsiIndicator.getValue(i));
 
-        if (delta.floatValue() > DELTA_PERCENT) {
+        if (delta.floatValue() > DELTA_PERCENT
+                && rsiIndicator.getValue(i).isLessThan(rsiIndicator.getValue(i - 1))
+                && rsiIndicator.getValue(i - 1).isLessThan(rsiIndicator.getValue(i - 2))) {
             return  2;
-        } else if (delta.floatValue() < -DELTA_PERCENT) {
+        } else if (delta.floatValue() < -DELTA_PERCENT
+                && rsiIndicator.getValue(i).isGreaterThan(rsiIndicator.getValue(i - 1))
+                && rsiIndicator.getValue(i - 1).isGreaterThan(rsiIndicator.getValue(i - 2))) {
             return  0;
         } else {
             return 1;
         }
     }
 
-    public static void calcData(INDArray indData, KucoinKline kucoinKline, int i, int y, RSIIndicator rsiIndicator) {
+    public static void calcData(INDArray indData, KucoinKline kucoinKline, int i, int y, Num rsiIndicatorValue) {
         indData.putScalar(new int[]{i, 0, y},
                 kucoinKline.getClose().subtract(kucoinKline.getOpen()).floatValue() * NORMAL);
         indData.putScalar(new int[]{i, 1, y},
@@ -63,7 +67,7 @@ public class TradeUtil {
                         kucoinKline.getOpen().subtract(kucoinKline.getLow()).floatValue() * NORMAL :
                         kucoinKline.getClose().subtract(kucoinKline.getLow()).floatValue() * NORMAL);
         indData.putScalar(new int[]{i, 3, y}, kucoinKline.getVolume().floatValue() * NORMAL);
-        indData.putScalar(new int[]{i, 4, y}, rsiIndicator.getValue(y).floatValue() * NORMAL);
+        indData.putScalar(new int[]{i, 4, y}, rsiIndicatorValue.floatValue() * NORMAL);
     }
 
     public static void loadBarSeries(BarSeries barSeries, KucoinKline kucoinKlines) {
