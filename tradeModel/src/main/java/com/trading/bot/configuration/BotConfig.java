@@ -45,13 +45,13 @@ import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int INPUT_SIZE = 4;
-    public static final int LAYER_SIZE = 160;
+    public static final int LAYER_SIZE = 120;
     public static final int OUTPUT_SIZE = 3;
-    public static final int TRAIN_EXAMPLES = 28;
+    public static final int TRAIN_EXAMPLES = 90;
     public static final int TRAIN_KLINES = 288;
     public static final int PREDICT_DEEP = 4;
     public static final float DELTA_PRICE = 4F;
-    public static final float NORMAL = 0.02F;
+    public static final float NORMAL = 0.01F;
 
     @Value("${model.bucket}")
     public String bucketName;
@@ -84,8 +84,6 @@ public class BotConfig {
                 .seed(123)    //Random number generator seed for improved repeatability. Optional.
                 .weightInit(WeightInit.XAVIER)
                 .updater(new Adam())
-                .gradientNormalization(GradientNormalization.ClipElementWiseAbsoluteValue)  //Not always required, but helps with this data set
-                .gradientNormalizationThreshold(0.5)
                 .list()
                 .layer(new LSTM.Builder().activation(Activation.TANH).nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
                 .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE).build())
@@ -98,13 +96,12 @@ public class BotConfig {
     public MultiLayerNetwork getModel(Exchange exchange, MultiLayerConfiguration config) throws IOException {
         final String keyName = CURRENCY_PAIR.base + ".zip";
         final String path = FilenameUtils.concat(System.getProperty("java.io.tmpdir"), keyName);
-        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC)
-                .truncatedTo(ChronoUnit.HOURS).minusHours(1);
+        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.DAYS);
         final AmazonS3 s3 = AmazonS3ClientBuilder.standard().withRegion(Regions.EU_CENTRAL_1).build();
 
         MultiLayerNetwork net = new MultiLayerNetwork(config);
         net.init();
-        net.setListeners(new ScoreIterationListener(10));
+        net.setListeners(new ScoreIterationListener(100));
 
         try (INDArray indData = Nd4j.zeros(TRAIN_EXAMPLES, INPUT_SIZE, TRAIN_KLINES);
              INDArray indLabels = Nd4j.zeros(TRAIN_EXAMPLES, OUTPUT_SIZE, TRAIN_KLINES)) {
@@ -136,7 +133,7 @@ public class BotConfig {
             }
 
             net.fit(indData, indLabels);
-            while (net.score() > 1D) {
+            while (net.score() > 0.1D) {
                 net.fit(indData, indLabels);
             }
         }
