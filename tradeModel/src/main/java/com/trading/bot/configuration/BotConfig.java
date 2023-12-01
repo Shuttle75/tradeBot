@@ -5,6 +5,7 @@ import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import org.apache.commons.io.FilenameUtils;
+import org.deeplearning4j.core.storage.StatsStorage;
 import org.deeplearning4j.nn.conf.GradientNormalization;
 import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
@@ -13,6 +14,9 @@ import org.deeplearning4j.nn.conf.layers.RnnOutputLayer;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.weights.WeightInit;
 import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
+import org.deeplearning4j.ui.api.UIServer;
+import org.deeplearning4j.ui.model.stats.StatsListener;
+import org.deeplearning4j.ui.model.storage.InMemoryStatsStorage;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.ExchangeFactory;
 import org.knowm.xchange.ExchangeSpecification;
@@ -87,13 +91,27 @@ public class BotConfig {
                 .list()
                 .layer(new LSTM.Builder().activation(Activation.TANH).nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
                 .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE).build())
+                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE).build())
                 .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
                         .activation(Activation.SOFTMAX).nOut(OUTPUT_SIZE).build())
                 .build();
     }
 
     @Bean
-    public MultiLayerNetwork getModel(Exchange exchange, MultiLayerConfiguration config) throws IOException {
+    public StatsStorage getStatsStorage() {
+        return new InMemoryStatsStorage();
+    }
+
+    @Bean
+    public UIServer getUiServer(StatsStorage statsStorage) {
+        UIServer uiServer = UIServer.getInstance();
+        uiServer.attach(statsStorage);
+        return uiServer;
+    }
+
+    @Bean
+    public MultiLayerNetwork getModel(Exchange exchange, MultiLayerConfiguration config, StatsStorage statsStorage)
+            throws IOException {
         final String keyName = CURRENCY_PAIR.base + ".zip";
         final String path = FilenameUtils.concat(System.getProperty("java.io.tmpdir"), keyName);
         final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.DAYS);
@@ -101,7 +119,7 @@ public class BotConfig {
 
         MultiLayerNetwork net = new MultiLayerNetwork(config);
         net.init();
-        net.setListeners(new ScoreIterationListener(100));
+        net.setListeners(new StatsListener(statsStorage));
 
         try (INDArray indData = Nd4j.zeros(TRAIN_EXAMPLES, INPUT_SIZE, TRAIN_KLINES);
              INDArray indLabels = Nd4j.zeros(TRAIN_EXAMPLES, OUTPUT_SIZE, TRAIN_KLINES)) {
