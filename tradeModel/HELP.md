@@ -23,3 +23,25 @@ The following guides illustrate how to use some features concretely:
 aws s3 cp s3://trade-crypto-releases/tradeModel-0.0.1-SNAPSHOT.jar tradeModel-0.0.1-SNAPSHOT.jar
 sudo yum install java-11-amazon-corretto --assumeyes
 sudo java -jar --illegal-access=deny tradeModel-0.0.1-SNAPSHOT.jar
+
+48 Cells 1 Layer
+" GoodMark = 27, WrongMark = 99, K = 0.21428572"      -- 1
+
+
+72 Cells 2 Layer
+" GoodMark = 13, WrongMark = 113, K = 0.103174604"    -- 0.01
+" GoodMark = 6, WrongMark = 120, K = 0.04761905"      -- 0.01        dropOut(0.98)
+" GoodMark = 16, WrongMark = 110, K = 0.12698413"     -- 0.001
+                                                      -- 0.001       dropOut(0.98)
+" GoodMark = 16, WrongMark = 110, K = 0.12698413"     -- 0.0001
+" 5 Hours, NOT ENDED                            "     -- 0.0001      dropOut(0.96)
+
+
+48 Cells 2 Layer
+" GoodMark = 17, WrongMark = 109, K = 0.13492064"     -- 1
+                                                      -- 0.1
+                                                      -- 0.01
+                                                      -- 0.001
+                                                      -- 0.001       dropOut(0.98)
+                                                      -- 0.0001 
+                                                      -- 0.0001      dropOut(0.96)

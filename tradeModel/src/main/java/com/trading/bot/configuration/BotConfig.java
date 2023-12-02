@@ -6,14 +6,12 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import org.apache.commons.io.FilenameUtils;
 import org.deeplearning4j.core.storage.StatsStorage;
-import org.deeplearning4j.nn.conf.GradientNormalization;
 import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
 import org.deeplearning4j.nn.conf.layers.LSTM;
 import org.deeplearning4j.nn.conf.layers.RnnOutputLayer;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.weights.WeightInit;
-import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
 import org.deeplearning4j.ui.api.UIServer;
 import org.deeplearning4j.ui.model.stats.StatsListener;
 import org.deeplearning4j.ui.model.storage.InMemoryStatsStorage;
@@ -49,9 +47,9 @@ import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int INPUT_SIZE = 4;
-    public static final int LAYER_SIZE = 120;
+    public static final int LAYER_SIZE = 48;
     public static final int OUTPUT_SIZE = 3;
-    public static final int TRAIN_EXAMPLES = 84;
+    public static final int TRAIN_EXAMPLES = 28;
     public static final int TRAIN_KLINES = 288;
     public static final int PREDICT_DEEP = 4;
     public static final float DELTA_PRICE = 3F;
@@ -90,8 +88,6 @@ public class BotConfig {
                 .updater(new Adam())
                 .list()
                 .layer(new LSTM.Builder().activation(Activation.TANH).nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
-                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE).build())
-                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE).build())
                 .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
                         .activation(Activation.SOFTMAX).nOut(OUTPUT_SIZE).build())
                 .build();
@@ -114,7 +110,7 @@ public class BotConfig {
             throws IOException {
         final String keyName = CURRENCY_PAIR.base + ".zip";
         final String path = FilenameUtils.concat(System.getProperty("java.io.tmpdir"), keyName);
-        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.DAYS);
+        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC).minusDays(7).truncatedTo(ChronoUnit.DAYS);
         final AmazonS3 s3 = AmazonS3ClientBuilder.standard().withRegion(Regions.EU_CENTRAL_1).build();
 
         MultiLayerNetwork net = new MultiLayerNetwork(config);
@@ -151,7 +147,7 @@ public class BotConfig {
             }
 
             net.fit(indData, indLabels);
-            while (net.score() > 0.1D) {
+            while (net.score() > 1D) {
                 net.fit(indData, indLabels);
             }
         }
