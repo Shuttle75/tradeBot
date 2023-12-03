@@ -25,8 +25,10 @@ sudo yum install java-11-amazon-corretto --assumeyes
 sudo java -jar --illegal-access=deny tradeModel-0.0.1-SNAPSHOT.jar
 
 48 Cells 1 Layer
-" GoodMark = 27, WrongMark = 99, K = 0.21428572"      -- 1
+" GoodMark = 49, WrongMark = 100, K = 0.32885906"     -- 1
 
+48 Cells 1 Layer
+" GoodMark = 53, WrongMark = 96, K = 0.3557047"     -- 1
 
 72 Cells 2 Layer
 " GoodMark = 13, WrongMark = 113, K = 0.103174604"    -- 0.01
@@ -37,11 +39,3 @@ sudo java -jar --illegal-access=deny tradeModel-0.0.1-SNAPSHOT.jar
 " 5 Hours, NOT ENDED                            "     -- 0.0001      dropOut(0.96)
 
 
-48 Cells 2 Layer
-" GoodMark = 17, WrongMark = 109, K = 0.13492064"     -- 1
-                                                      -- 0.1
-                                                      -- 0.01
-                                                      -- 0.001
-                                                      -- 0.001       dropOut(0.98)
-                                                      -- 0.0001 
-                                                      -- 0.0001      dropOut(0.96)

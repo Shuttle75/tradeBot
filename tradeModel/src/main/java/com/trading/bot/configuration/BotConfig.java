@@ -52,7 +52,7 @@ public class BotConfig {
     public static final int TRAIN_EXAMPLES = 28;
     public static final int TRAIN_KLINES = 288;
     public static final int PREDICT_DEEP = 4;
-    public static final float DELTA_PRICE = 3F;
+    public static final float DELTA_PRICE = 2F;
     public static final float NORMAL = 0.01F;
 
     @Value("${model.bucket}")
@@ -88,6 +88,7 @@ public class BotConfig {
                 .updater(new Adam())
                 .list()
                 .layer(new LSTM.Builder().activation(Activation.TANH).nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
+                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE / 4).build())
                 .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
                         .activation(Activation.SOFTMAX).nOut(OUTPUT_SIZE).build())
                 .build();

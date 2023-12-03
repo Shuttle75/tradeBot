@@ -41,12 +41,13 @@ public class TradeUtil {
     public static int getDelta(List<KucoinKline> kucoinKlines, int i) {
         BigDecimal data = kucoinKlines.get(i + PREDICT_DEEP).getClose()
                 .subtract(kucoinKlines.get(i).getClose());
+        boolean kline0IsGreen = kucoinKlines.get(i).getClose().compareTo(kucoinKlines.get(i).getOpen()) > 0;
 
         float currencyDelta = kucoinKlines.get(i).getClose().movePointLeft(3).floatValue() * DELTA_PRICE;
 
-        if (data.floatValue() > currencyDelta) {
+        if (data.floatValue() > currencyDelta && !kline0IsGreen) {
             return  2;
-        } else if (data.floatValue() < -currencyDelta) {
+        } else if (data.floatValue() < -currencyDelta && kline0IsGreen) {
             return  0;
         } else {
             return 1;
