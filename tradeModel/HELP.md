@@ -27,7 +27,7 @@ sudo java -jar --illegal-access=deny tradeModel-0.0.1-SNAPSHOT.jar
 48 Cells 1 Layer
 " GoodMark = 49, WrongMark = 100, K = 0.32885906"     -- 1
 
-48 Cells 1 Layer
+48 Cells 2 Layer
 " GoodMark = 53, WrongMark = 96, K = 0.3557047"     -- 1
 
 72 Cells 2 Layer
