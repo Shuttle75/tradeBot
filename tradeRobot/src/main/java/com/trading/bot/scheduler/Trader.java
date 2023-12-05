@@ -27,7 +27,6 @@ import java.util.function.ToDoubleFunction;
 import static com.trading.bot.configuration.BotConfig.TREND_QUEUE;
 import static com.trading.bot.util.TradeUtil.*;
 import static java.util.Objects.isNull;
-import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
 
 @Service
 public class Trader {
@@ -77,6 +76,8 @@ public class Trader {
         List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
         prevKline = kucoinKlines.get(1);
 
+        trendQueue.add(prevKline.getClose().subtract(prevKline.getOpen()));
+
         loadBarSeries(barSeries, prevKline);
         macdHistogramValue = macdLine.getValue(barSeries.getEndIndex())
             .minus(signalLine.getValue(barSeries.getEndIndex())).floatValue();
@@ -84,7 +85,6 @@ public class Trader {
         predict = getPredict(prevKline, net);
         String rates = printRates(predict);
         logger.info("{}", rates);
-        trendQueue.clear();
     }
 
     @Scheduled(cron = "5/10 * * * * *")
@@ -98,7 +98,6 @@ public class Trader {
         KucoinKline lastKline = kucoinKlines.get(0);
 
         double lastDelta = lastKline.getClose().subtract(lastKline.getOpen()).doubleValue();
-        trendQueue.add(lastKline.getClose().subtract(lastKline.getOpen()));
 
         if (!purchased
                 && predict[2] > tradeLimit

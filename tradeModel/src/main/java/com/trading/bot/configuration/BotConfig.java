@@ -31,6 +31,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.ta4j.core.BarSeries;
+import org.ta4j.core.BaseBarSeries;
+import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 
 import java.io.File;
 import java.io.IOException;
@@ -51,8 +55,9 @@ public class BotConfig {
     public static final int OUTPUT_SIZE = 3;
     public static final int TRAIN_EXAMPLES = 28;
     public static final int TRAIN_KLINES = 288;
+    public static final int HISTORY_DEEP = 9;
     public static final int PREDICT_DEEP = 4;
-    public static final float DELTA_PRICE = 2F;
+    public static final float DELTA_PRICE = 0.002F;
     public static final float NORMAL = 0.01F;
 
     @Value("${model.bucket}")
@@ -88,7 +93,6 @@ public class BotConfig {
                 .updater(new Adam())
                 .list()
                 .layer(new LSTM.Builder().activation(Activation.TANH).nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
-                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE / 4).build())
                 .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
                         .activation(Activation.SOFTMAX).nOut(OUTPUT_SIZE).build())
                 .build();
@@ -123,9 +127,12 @@ public class BotConfig {
 
             int i = TRAIN_EXAMPLES - 1;
             while (i >= 0) {
+                BarSeries barSeries = new BaseBarSeries();
+                EMAIndicator emaIndicator = new EMAIndicator(new ClosePriceIndicator(barSeries), 9);
                 LocalDateTime startDate = now.minusSeconds(
                         i * (long) TRAIN_KLINES * min5.getSeconds()
-                                + TRAIN_KLINES * min5.getSeconds());
+                                + TRAIN_KLINES * min5.getSeconds()
+                                + HISTORY_DEEP * min5.getSeconds());
                 LocalDateTime endDate = now.minusSeconds(
                         i * (long) TRAIN_KLINES * min5.getSeconds()
                                 - PREDICT_DEEP * min5.getSeconds());
@@ -136,12 +143,13 @@ public class BotConfig {
                                 startDate.toEpochSecond(ZoneOffset.UTC),
                                 endDate.toEpochSecond(ZoneOffset.UTC));
                 Collections.reverse(kucoinKlines);
+                kucoinKlines.forEach(kucoinKline -> loadBarSeries(barSeries, kucoinKline));
 
                 logger.info("startDate {} endDate {}", startDate, endDate);
 
                 for (int y = 0; y < TRAIN_KLINES; y++) {
-                    calcData(indData, kucoinKlines.get(y), i, y);
-                    indLabels.putScalar(new int[]{i, getDelta(kucoinKlines, y), y}, 1);
+                    calcData(indData, kucoinKlines.get(y + HISTORY_DEEP), i, y);
+                    indLabels.putScalar(new int[]{i, getDelta(emaIndicator, y + HISTORY_DEEP), y}, 1);
                 }
 
                 i--;

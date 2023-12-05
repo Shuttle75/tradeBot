@@ -5,6 +5,10 @@ import org.knowm.xchange.Exchange;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.ta4j.core.BarSeries;
+import org.ta4j.core.BaseBarSeries;
+import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -40,9 +44,12 @@ public class KlinesController {
             .truncatedTo(ChronoUnit.DAYS)
             .minusDays(1)
             .toEpochSecond(ZoneOffset.UTC);
+        final BarSeries barSeries = new BaseBarSeries();
+        final EMAIndicator emaIndicator = new EMAIndicator(new ClosePriceIndicator(barSeries), 9);
 
         final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
         Collections.reverse(kucoinKlines);
+        kucoinKlines.forEach(kucoinKline -> loadBarSeries(barSeries, kucoinKline));
 
         net.rnnClearPreviousState();
 
@@ -50,7 +57,7 @@ public class KlinesController {
         for (int i = 0; i < kucoinKlines.size() - PREDICT_DEEP; i++) {
             float[] floatResult = getPredict(kucoinKlines.get(i), net);
             int[] intLabels = new int[OUTPUT_SIZE];
-            intLabels[getDelta(kucoinKlines, i)] = 1;
+            intLabels[getDelta(emaIndicator, i)] = 1;
 
             if (intLabels[0] == 1) {
                 if (floatResult[0] > 0.7) {

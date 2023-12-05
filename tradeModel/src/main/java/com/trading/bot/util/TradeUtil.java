@@ -8,14 +8,17 @@ import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import org.ta4j.core.BarSeries;
+import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.num.DecimalNum;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.*;
+import java.util.function.IntToDoubleFunction;
+import java.util.stream.IntStream;
 
 import static com.trading.bot.configuration.BotConfig.*;
 
@@ -38,20 +41,39 @@ public class TradeUtil {
         }
     }
 
-    public static int getDelta(List<KucoinKline> kucoinKlines, int i) {
-        BigDecimal data = kucoinKlines.get(i + PREDICT_DEEP).getClose()
-                .subtract(kucoinKlines.get(i).getClose());
-        boolean kline0IsGreen = kucoinKlines.get(i).getClose().compareTo(kucoinKlines.get(i).getOpen()) > 0;
+    public static int getDelta(EMAIndicator emaIndicator, int pos) {
+        double parabolaPlus = IntStream.range(0, 9)
+                .mapToDouble(getPrabolaPlusFunction(emaIndicator, pos))
+                .sum();
+        double parabolaMinus = IntStream.range(0, 8)
+                .mapToDouble(getPrabolaMinusFunction(emaIndicator, pos))
+                .sum();
 
-        float currencyDelta = kucoinKlines.get(i).getClose().movePointLeft(3).floatValue() * DELTA_PRICE;
+        float currencyDelta = emaIndicator.getValue(pos).floatValue() * DELTA_PRICE;
 
-        if (data.floatValue() > currencyDelta && !kline0IsGreen) {
+        if (parabolaPlus < currencyDelta) {
             return  2;
-        } else if (data.floatValue() < -currencyDelta && kline0IsGreen) {
+        } else if (parabolaMinus < currencyDelta) {
             return  0;
         } else {
             return 1;
         }
+    }
+
+    private static IntToDoubleFunction getPrabolaMinusFunction(EMAIndicator emaIndicator, int pos) {
+        return i -> emaIndicator.getValue(pos - PREDICT_DEEP + i)
+                .minus(emaIndicator.getValue(pos))
+                .plus(DecimalNum.valueOf(i - PREDICT_DEEP).pow(2).multipliedBy(DecimalNum.valueOf(3)))
+                .abs()
+                .doubleValue();
+    }
+
+    private static IntToDoubleFunction getPrabolaPlusFunction(EMAIndicator emaIndicator, int pos) {
+        return i -> emaIndicator.getValue(pos - PREDICT_DEEP + i)
+                .minus(emaIndicator.getValue(pos))
+                .minus(DecimalNum.valueOf(i - PREDICT_DEEP).pow(2).multipliedBy(DecimalNum.valueOf(3)))
+                .abs()
+                .doubleValue();
     }
 
     public static void calcData(INDArray indData, KucoinKline kucoinKline, int i, int y) {
