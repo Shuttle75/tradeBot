@@ -9,18 +9,16 @@ import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.indicators.EMAIndicator;
-import org.ta4j.core.indicators.RSIIndicator;
 import org.ta4j.core.num.DecimalNum;
-import org.ta4j.core.num.Num;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.function.IntToDoubleFunction;
-import java.util.stream.IntStream;
 
 import static com.trading.bot.configuration.BotConfig.*;
 
@@ -34,21 +32,20 @@ public class TradeUtil {
                 .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, KlineIntervalType.min5);
     }
 
-    public static float[] getPredict(KucoinKline kucoinKline, MultiLayerNetwork net,
-                                     EMAIndicator emaF, EMAIndicator emaM, EMAIndicator emaS, RSIIndicator rsi) {
+    public static float[] getPredict(KucoinKline kucoinKline, MultiLayerNetwork net) {
         try (INDArray indData = Nd4j.zeros(1, INPUT_SIZE, 1)) {
 
-            calcData(indData, kucoinKline, 0, 0, emaF, emaM, emaS, rsi);
+            calcData(indData, kucoinKline, 0, 0);
 
             return net.rnnTimeStep(indData).ravel().toFloatVector();
         }
     }
 
-    public static int getDelta(EMAIndicator emaIndicator, int pos) {
-        Num data = emaIndicator.getValue(pos + PREDICT_DEEP)
-                .minus(emaIndicator.getValue(pos));
+    public static int getDelta(List<KucoinKline> kucoinKlines, int i) {
+        BigDecimal data = kucoinKlines.get(i + PREDICT_DEEP).getClose()
+            .subtract(kucoinKlines.get(i).getClose());
 
-        float currencyDelta = emaIndicator.getValue(pos).floatValue() * DELTA_PRICE;
+        float currencyDelta = kucoinKlines.get(i).getClose().movePointLeft(3).floatValue() * DELTA_PRICE;
 
         if (data.floatValue() > currencyDelta) {
             return  2;
@@ -75,17 +72,18 @@ public class TradeUtil {
                 .doubleValue();
     }
 
-    public static void calcData(INDArray indData, KucoinKline kucoinKline, int i, int y,
-                                EMAIndicator emaF, EMAIndicator emaM, EMAIndicator emaS, RSIIndicator rsi) {
-        indData.putScalar(new int[]{i, 0, y}, kucoinKline.getOpen().floatValue() * 0.000_01);
-        indData.putScalar(new int[]{i, 1, y}, kucoinKline.getClose().floatValue() * 0.000_01);
-        indData.putScalar(new int[]{i, 2, y}, kucoinKline.getHigh().floatValue() * 0.000_01);
-        indData.putScalar(new int[]{i, 3, y}, kucoinKline.getLow().floatValue() * 0.000_01);
-        indData.putScalar(new int[]{i, 4, y}, kucoinKline.getVolume().floatValue() * 0.01);
-        indData.putScalar(new int[]{i, 5, y}, emaF.getValue(y).floatValue() * 0.000_01);
-        indData.putScalar(new int[]{i, 6, y}, emaM.getValue(y).floatValue() * 0.000_01);
-        indData.putScalar(new int[]{i, 7, y}, emaS.getValue(y).floatValue() * 0.000_01);
-        indData.putScalar(new int[]{i, 8, y}, rsi.getValue(y).floatValue() * 0.01);
+    public static void calcData(INDArray indData, KucoinKline kucoinKline, int i, int y) {
+        indData.putScalar(new int[]{i, 0, y},
+                          kucoinKline.getClose().subtract(kucoinKline.getOpen()).floatValue() * 0.01);
+        indData.putScalar(new int[]{i, 1, y}, kucoinKline.getVolume().floatValue() * 0.01);
+        indData.putScalar(new int[]{i, 2, y},
+                          kucoinKline.getClose().compareTo(kucoinKline.getOpen()) > 0 ?
+                          kucoinKline.getHigh().subtract(kucoinKline.getClose()).floatValue() * 0.01 :
+                          kucoinKline.getHigh().subtract(kucoinKline.getOpen()).floatValue() * 0.01);
+        indData.putScalar(new int[]{i, 3, y},
+                          kucoinKline.getClose().compareTo(kucoinKline.getOpen()) > 0 ?
+                          kucoinKline.getOpen().subtract(kucoinKline.getLow()).floatValue() * 0.01 :
+                          kucoinKline.getClose().subtract(kucoinKline.getLow()).floatValue() * 0.01);
     }
 
     public static void loadBarSeries(BarSeries barSeries, KucoinKline kucoinKlines) {

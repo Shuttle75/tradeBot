@@ -12,7 +12,6 @@ import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseBarSeries;
 import org.ta4j.core.indicators.EMAIndicator;
 import org.ta4j.core.indicators.MACDIndicator;
-import org.ta4j.core.indicators.RSIIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 
 import javax.annotation.PostConstruct;
@@ -42,9 +41,6 @@ public class Trader {
     private final BarSeries barSeries;
     private final MACDIndicator macdLine;
     private final EMAIndicator emaF;
-    private final EMAIndicator emaM;
-    private final EMAIndicator emaS;
-    private final RSIIndicator rsi;
     private float macdHistogramValue;
 
     @Value("${trader.buylimit}")
@@ -61,9 +57,6 @@ public class Trader {
         barSeries = new BaseBarSeries();
         macdLine = new MACDIndicator(new ClosePriceIndicator(barSeries));
         emaF = new EMAIndicator(new ClosePriceIndicator(barSeries), 9);
-        emaM = new EMAIndicator(new ClosePriceIndicator(barSeries), 50);
-        emaS = new EMAIndicator(new ClosePriceIndicator(barSeries), 2000);
-        rsi = new RSIIndicator(new ClosePriceIndicator(barSeries), 14);
     }
 
     @PostConstruct
@@ -89,7 +82,7 @@ public class Trader {
         macdHistogramValue = macdLine.getValue(barSeries.getEndIndex())
             .minus(emaF.getValue(barSeries.getEndIndex())).floatValue();
 
-        predict = getPredict(prevKline, net, emaF, emaM, emaS, rsi);
+        predict = getPredict(prevKline, net);
         String rates = printRates(predict);
         logger.info("{}", rates);
     }
@@ -104,9 +97,7 @@ public class Trader {
         List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
         KucoinKline lastKline = kucoinKlines.get(0);
 
-        if (!purchased
-                && predict[2] > tradeLimit
-                && macdHistogramValue < 0) {
+        if (!purchased && predict[2] > tradeLimit && macdHistogramValue < 0) {
             firstPrice = lastKline.getClose();
             trendQueue.clear();
             logger.info("BUY {} Price {}", curAccount, lastKline.getClose());
@@ -114,8 +105,7 @@ public class Trader {
             return;
         }
 
-        if (purchased
-                && predict[0] > tradeLimit) {
+        if (purchased && predict[0] > tradeLimit) {
             curAccount = curAccount.multiply(lastKline.getClose()).divide(firstPrice, 2, RoundingMode.HALF_UP);
             logger.info("SELL {} firstPrice {} newPrice {}", curAccount, firstPrice, lastKline.getClose());
             predict = new float[] {0F, 0F, 0F};

@@ -28,9 +28,8 @@ public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int INPUT_SIZE = 4;
     public static final int OUTPUT_SIZE = 3;
-    public static final int HISTORY_DEEP = 9;
     public static final int PREDICT_DEEP = 4;
-    public static final float DELTA_PRICE = 0.002F;
+    public static final float DELTA_PRICE = 2F;
     public static final float NORMAL = 0.01F;
     public static final int TREND_QUEUE = 4;
 
