@@ -11,8 +11,10 @@ import org.ta4j.core.indicators.EMAIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -79,7 +81,8 @@ public class KlinesController {
                            intLabels[2] + "    ");
             listResult.add(String.format("%.2f", floatResult[0]) + " " +
                            String.format("%.2f", floatResult[1]) + " " +
-                           String.format("%.2f", floatResult[2]));
+                           String.format("%.2f", floatResult[2]) + " " +
+                           ZonedDateTime.ofInstant(Instant.ofEpochSecond(kucoinKlines.get(i).getTime()), ZoneOffset.UTC));
             listResult.add("--------------------------");
         }
 

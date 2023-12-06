@@ -9,7 +9,9 @@ import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.indicators.RSIIndicator;
 import org.ta4j.core.num.DecimalNum;
+import org.ta4j.core.num.Num;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -32,28 +34,25 @@ public class TradeUtil {
                 .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, KlineIntervalType.min5);
     }
 
-    public static float[] getPredict(KucoinKline kucoinKline, MultiLayerNetwork net) {
+    public static float[] getPredict(KucoinKline kucoinKline, MultiLayerNetwork net,
+                                     EMAIndicator emaF, EMAIndicator emaM, EMAIndicator emaS, RSIIndicator rsi) {
         try (INDArray indData = Nd4j.zeros(1, INPUT_SIZE, 1)) {
 
-            calcData(indData, kucoinKline, 0, 0);
+            calcData(indData, kucoinKline, 0, 0, emaF, emaM, emaS, rsi);
 
             return net.rnnTimeStep(indData).ravel().toFloatVector();
         }
     }
 
     public static int getDelta(EMAIndicator emaIndicator, int pos) {
-        double parabolaPlus = IntStream.range(0, 9)
-                .mapToDouble(getPrabolaPlusFunction(emaIndicator, pos))
-                .sum();
-        double parabolaMinus = IntStream.range(0, 8)
-                .mapToDouble(getPrabolaMinusFunction(emaIndicator, pos))
-                .sum();
+        Num data = emaIndicator.getValue(pos + PREDICT_DEEP)
+                .minus(emaIndicator.getValue(pos));
 
         float currencyDelta = emaIndicator.getValue(pos).floatValue() * DELTA_PRICE;
 
-        if (parabolaPlus < currencyDelta) {
+        if (data.floatValue() > currencyDelta) {
             return  2;
-        } else if (parabolaMinus < currencyDelta) {
+        } else if (data.floatValue() < -currencyDelta) {
             return  0;
         } else {
             return 1;
@@ -63,7 +62,7 @@ public class TradeUtil {
     private static IntToDoubleFunction getPrabolaMinusFunction(EMAIndicator emaIndicator, int pos) {
         return i -> emaIndicator.getValue(pos - PREDICT_DEEP + i)
                 .minus(emaIndicator.getValue(pos))
-                .plus(DecimalNum.valueOf(i - PREDICT_DEEP).pow(2).multipliedBy(DecimalNum.valueOf(3)))
+                .plus(DecimalNum.valueOf(i - PREDICT_DEEP).pow(2).multipliedBy(DecimalNum.valueOf(2)))
                 .abs()
                 .doubleValue();
     }
@@ -71,23 +70,22 @@ public class TradeUtil {
     private static IntToDoubleFunction getPrabolaPlusFunction(EMAIndicator emaIndicator, int pos) {
         return i -> emaIndicator.getValue(pos - PREDICT_DEEP + i)
                 .minus(emaIndicator.getValue(pos))
-                .minus(DecimalNum.valueOf(i - PREDICT_DEEP).pow(2).multipliedBy(DecimalNum.valueOf(3)))
+                .minus(DecimalNum.valueOf(i - PREDICT_DEEP).pow(2).multipliedBy(DecimalNum.valueOf(2)))
                 .abs()
                 .doubleValue();
     }
 
-    public static void calcData(INDArray indData, KucoinKline kucoinKline, int i, int y) {
-        indData.putScalar(new int[]{i, 0, y},
-                kucoinKline.getClose().subtract(kucoinKline.getOpen()).floatValue() * NORMAL);
-        indData.putScalar(new int[]{i, 1, y},
-                kucoinKline.getClose().compareTo(kucoinKline.getOpen()) > 0 ?
-                        kucoinKline.getHigh().subtract(kucoinKline.getClose()).floatValue() * NORMAL :
-                        kucoinKline.getHigh().subtract(kucoinKline.getOpen()).floatValue() * NORMAL);
-        indData.putScalar(new int[]{i, 2, y},
-                kucoinKline.getClose().compareTo(kucoinKline.getOpen()) > 0 ?
-                        kucoinKline.getOpen().subtract(kucoinKline.getLow()).floatValue() * NORMAL :
-                        kucoinKline.getClose().subtract(kucoinKline.getLow()).floatValue() * NORMAL);
-        indData.putScalar(new int[]{i, 3, y}, kucoinKline.getVolume().floatValue() * NORMAL);
+    public static void calcData(INDArray indData, KucoinKline kucoinKline, int i, int y,
+                                EMAIndicator emaF, EMAIndicator emaM, EMAIndicator emaS, RSIIndicator rsi) {
+        indData.putScalar(new int[]{i, 0, y}, kucoinKline.getOpen().floatValue() * 0.000_01);
+        indData.putScalar(new int[]{i, 1, y}, kucoinKline.getClose().floatValue() * 0.000_01);
+        indData.putScalar(new int[]{i, 2, y}, kucoinKline.getHigh().floatValue() * 0.000_01);
+        indData.putScalar(new int[]{i, 3, y}, kucoinKline.getLow().floatValue() * 0.000_01);
+        indData.putScalar(new int[]{i, 4, y}, kucoinKline.getVolume().floatValue() * 0.01);
+        indData.putScalar(new int[]{i, 5, y}, emaF.getValue(y).floatValue() * 0.000_01);
+        indData.putScalar(new int[]{i, 6, y}, emaM.getValue(y).floatValue() * 0.000_01);
+        indData.putScalar(new int[]{i, 7, y}, emaS.getValue(y).floatValue() * 0.000_01);
+        indData.putScalar(new int[]{i, 8, y}, rsi.getValue(y).floatValue() * 0.01);
     }
 
     public static void loadBarSeries(BarSeries barSeries, KucoinKline kucoinKlines) {

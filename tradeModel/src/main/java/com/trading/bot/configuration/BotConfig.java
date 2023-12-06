@@ -34,6 +34,7 @@ import org.springframework.context.annotation.Configuration;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseBarSeries;
 import org.ta4j.core.indicators.EMAIndicator;
+import org.ta4j.core.indicators.RSIIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 
 import java.io.File;
@@ -50,7 +51,7 @@ import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
 @Configuration
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
-    public static final int INPUT_SIZE = 4;
+    public static final int INPUT_SIZE = 9;
     public static final int LAYER_SIZE = 48;
     public static final int OUTPUT_SIZE = 3;
     public static final int TRAIN_EXAMPLES = 28;
@@ -128,7 +129,10 @@ public class BotConfig {
             int i = TRAIN_EXAMPLES - 1;
             while (i >= 0) {
                 BarSeries barSeries = new BaseBarSeries();
-                EMAIndicator emaIndicator = new EMAIndicator(new ClosePriceIndicator(barSeries), 9);
+                EMAIndicator emaF = new EMAIndicator(new ClosePriceIndicator(barSeries), 9);
+                EMAIndicator emaM = new EMAIndicator(new ClosePriceIndicator(barSeries), 50);
+                EMAIndicator emaS = new EMAIndicator(new ClosePriceIndicator(barSeries), 2000);
+                RSIIndicator rsi = new RSIIndicator(new ClosePriceIndicator(barSeries), 14);
                 LocalDateTime startDate = now.minusSeconds(
                         i * (long) TRAIN_KLINES * min5.getSeconds()
                                 + TRAIN_KLINES * min5.getSeconds()
@@ -148,8 +152,8 @@ public class BotConfig {
                 logger.info("startDate {} endDate {}", startDate, endDate);
 
                 for (int y = 0; y < TRAIN_KLINES; y++) {
-                    calcData(indData, kucoinKlines.get(y + HISTORY_DEEP), i, y);
-                    indLabels.putScalar(new int[]{i, getDelta(emaIndicator, y + HISTORY_DEEP), y}, 1);
+                    calcData(indData, kucoinKlines.get(y + HISTORY_DEEP), i, y, emaF, emaM, emaS, rsi);
+                    indLabels.putScalar(new int[]{i, getDelta(emaF, y + HISTORY_DEEP), y}, 1);
                 }
 
                 i--;
