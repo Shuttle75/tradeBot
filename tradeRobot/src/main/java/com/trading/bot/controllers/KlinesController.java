@@ -36,20 +36,24 @@ public class KlinesController {
         int wrongMark = 0;
         final long startDate = LocalDateTime.now(ZoneOffset.UTC)
             .truncatedTo(ChronoUnit.DAYS)
-            .minusDays(5)
+            .minusDays(6)
             .toEpochSecond(ZoneOffset.UTC);
         final long endDate = LocalDateTime.now(ZoneOffset.UTC)
             .truncatedTo(ChronoUnit.DAYS)
             .minusDays(1)
             .toEpochSecond(ZoneOffset.UTC);
+        final double avgCandle = getAvgCandle(exchange);
 
         final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
         Collections.reverse(kucoinKlines);
 
         net.rnnClearPreviousState();
+        for (int i = 0; i < 96; i++) {
+            getPredict(kucoinKlines.get(i), net);
+        }
 
         List<String> listResult = new ArrayList<>();
-        for (int i = 0; i < kucoinKlines.size() - PREDICT_DEEP; i++) {
+        for (int i = 96; i < kucoinKlines.size() - PREDICT_DEEP; i++) {
             float[] floatResult = getPredict(kucoinKlines.get(i), net);
             int[] intLabels = new int[OUTPUT_SIZE];
             intLabels[getDelta(kucoinKlines, i)] = 1;
@@ -75,7 +79,9 @@ public class KlinesController {
             listResult.add(String.format("%.2f", floatResult[0]) + " " +
                            String.format("%.2f", floatResult[1]) + " " +
                            String.format("%.2f", floatResult[2]) + " " +
-                           ZonedDateTime.ofInstant(Instant.ofEpochSecond(kucoinKlines.get(i).getTime()), ZoneOffset.UTC));
+                           ZonedDateTime.ofInstant(Instant.ofEpochSecond(kucoinKlines.get(i).getTime()), ZoneOffset.UTC) + " " +
+                           (floatResult[2] > 0.7 ? " +++++ " : "") + " " +
+                           (floatResult[0] > 0.7 ? " ----- " : ""));
             listResult.add("--------------------------");
         }
 

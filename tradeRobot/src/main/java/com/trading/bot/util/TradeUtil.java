@@ -8,19 +8,18 @@ import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import org.ta4j.core.BarSeries;
-import org.ta4j.core.indicators.EMAIndicator;
-import org.ta4j.core.num.DecimalNum;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.*;
-import java.util.function.IntToDoubleFunction;
 
 import static com.trading.bot.configuration.BotConfig.*;
+import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min15;
 
 public class TradeUtil {
 
@@ -29,7 +28,7 @@ public class TradeUtil {
 
     public static List<KucoinKline> getKucoinKlines(Exchange exchange, long startDate, long endDate) throws IOException {
         return ((KucoinMarketDataService) exchange.getMarketDataService())
-                .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, KlineIntervalType.min5);
+                .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min15);
     }
 
     public static float[] getPredict(KucoinKline kucoinKline, MultiLayerNetwork net) {
@@ -56,34 +55,28 @@ public class TradeUtil {
         }
     }
 
-    private static IntToDoubleFunction getPrabolaMinusFunction(EMAIndicator emaIndicator, int pos) {
-        return i -> emaIndicator.getValue(pos - PREDICT_DEEP + i)
-                .minus(emaIndicator.getValue(pos))
-                .plus(DecimalNum.valueOf(i - PREDICT_DEEP).pow(2).multipliedBy(DecimalNum.valueOf(2)))
-                .abs()
-                .doubleValue();
-    }
-
-    private static IntToDoubleFunction getPrabolaPlusFunction(EMAIndicator emaIndicator, int pos) {
-        return i -> emaIndicator.getValue(pos - PREDICT_DEEP + i)
-                .minus(emaIndicator.getValue(pos))
-                .minus(DecimalNum.valueOf(i - PREDICT_DEEP).pow(2).multipliedBy(DecimalNum.valueOf(2)))
-                .abs()
-                .doubleValue();
+    public static double getAvgCandle(Exchange exchange) throws IOException {
+        return getKucoinKlines(exchange, LocalDateTime.now(ZoneOffset.UTC).minusDays(7).toEpochSecond(ZoneOffset.UTC), 0L)
+            .stream()
+            .map(kucoinKline -> kucoinKline.getClose().subtract(kucoinKline.getOpen()))
+            .filter(candle -> candle.signum() > 0)
+            .mapToDouble(candle -> candle.doubleValue())
+            .average()
+            .orElse(Double.MIN_VALUE);
     }
 
     public static void calcData(INDArray indData, KucoinKline kucoinKline, int i, int y) {
         indData.putScalar(new int[]{i, 0, y},
-                          kucoinKline.getClose().subtract(kucoinKline.getOpen()).floatValue() * 0.01);
-        indData.putScalar(new int[]{i, 1, y}, kucoinKline.getVolume().floatValue() * 0.01);
+                          kucoinKline.getClose().subtract(kucoinKline.getOpen()).floatValue());
+        indData.putScalar(new int[]{i, 1, y}, kucoinKline.getVolume().floatValue() * 0.0001);
         indData.putScalar(new int[]{i, 2, y},
                           kucoinKline.getClose().compareTo(kucoinKline.getOpen()) > 0 ?
-                          kucoinKline.getHigh().subtract(kucoinKline.getClose()).floatValue() * 0.01 :
-                          kucoinKline.getHigh().subtract(kucoinKline.getOpen()).floatValue() * 0.01);
+                          kucoinKline.getHigh().subtract(kucoinKline.getClose()).floatValue() :
+                          kucoinKline.getHigh().subtract(kucoinKline.getOpen()).floatValue());
         indData.putScalar(new int[]{i, 3, y},
                           kucoinKline.getClose().compareTo(kucoinKline.getOpen()) > 0 ?
-                          kucoinKline.getOpen().subtract(kucoinKline.getLow()).floatValue() * 0.01 :
-                          kucoinKline.getClose().subtract(kucoinKline.getLow()).floatValue() * 0.01);
+                          kucoinKline.getOpen().subtract(kucoinKline.getLow()).floatValue() :
+                          kucoinKline.getClose().subtract(kucoinKline.getLow()).floatValue());
     }
 
     public static void loadBarSeries(BarSeries barSeries, KucoinKline kucoinKlines) {

@@ -29,8 +29,7 @@ public class BotConfig {
     public static final int INPUT_SIZE = 4;
     public static final int OUTPUT_SIZE = 3;
     public static final int PREDICT_DEEP = 4;
-    public static final float DELTA_PRICE = 2F;
-    public static final float NORMAL = 0.01F;
+    public static final float DELTA_PRICE = 5F;
     public static final int TREND_QUEUE = 4;
 
     @Value("${model.bucket}")
@@ -43,7 +42,7 @@ public class BotConfig {
     public String exchangeSecretKey;
     @Value("${exchange.passphrase}")
     public String exchangePassphrase;
-    public static final CurrencyPair CURRENCY_PAIR = new CurrencyPair("BTC", "USDT");
+    public static final CurrencyPair CURRENCY_PAIR = new CurrencyPair("LTC", "USDT");
 
     @Bean
     public Exchange getXChangeExchange() {

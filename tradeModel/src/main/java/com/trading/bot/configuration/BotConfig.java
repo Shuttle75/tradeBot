@@ -41,7 +41,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static com.trading.bot.util.TradeUtil.*;
-import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
+import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min15;
 
 @Configuration
 public class BotConfig {
@@ -50,10 +50,9 @@ public class BotConfig {
     public static final int LAYER_SIZE = 48;
     public static final int OUTPUT_SIZE = 3;
     public static final int TRAIN_EXAMPLES = 28;
-    public static final int TRAIN_KLINES = 288;
+    public static final int TRAIN_KLINES = 192;
     public static final int PREDICT_DEEP = 4;
-    public static final float DELTA_PRICE = 2F;
-    public static final float NORMAL = 0.01F;
+    public static final float DELTA_PRICE = 5F;
 
     @Value("${model.bucket}")
     public String bucketName;
@@ -65,7 +64,7 @@ public class BotConfig {
     public String exchangeSecretKey;
     @Value("${exchange.passphrase}")
     public String exchangePassphrase;
-    public static final CurrencyPair CURRENCY_PAIR = new CurrencyPair("BTC", "USDT");
+    public static final CurrencyPair CURRENCY_PAIR = new CurrencyPair("LTC", "USDT");
 
     @Bean
     public Exchange getXChangeExchange() {
@@ -88,7 +87,6 @@ public class BotConfig {
                 .updater(new Adam())
                 .list()
                 .layer(new LSTM.Builder().activation(Activation.TANH).nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
-                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE / 4).build())
                 .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
                         .activation(Activation.SOFTMAX).nOut(OUTPUT_SIZE).build())
                 .build();
@@ -124,11 +122,11 @@ public class BotConfig {
             int i = TRAIN_EXAMPLES - 1;
             while (i >= 0) {
                 LocalDateTime startDate = now.minusSeconds(
-                        i * (long) TRAIN_KLINES * min5.getSeconds()
-                                + TRAIN_KLINES * min5.getSeconds());
+                        i * (long) TRAIN_KLINES * min15.getSeconds()
+                                + TRAIN_KLINES * min15.getSeconds());
                 LocalDateTime endDate = now.minusSeconds(
-                        i * (long) TRAIN_KLINES * min5.getSeconds()
-                                - PREDICT_DEEP * min5.getSeconds());
+                        i * (long) TRAIN_KLINES * min15.getSeconds()
+                                - PREDICT_DEEP * min15.getSeconds());
 
                 List<KucoinKline> kucoinKlines =
                         getKucoinKlines(
