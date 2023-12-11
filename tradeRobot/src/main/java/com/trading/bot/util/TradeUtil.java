@@ -20,6 +20,7 @@ import java.util.*;
 
 import static com.trading.bot.configuration.BotConfig.*;
 import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min15;
+import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
 
 public class TradeUtil {
 
@@ -28,7 +29,7 @@ public class TradeUtil {
 
     public static List<KucoinKline> getKucoinKlines(Exchange exchange, long startDate, long endDate) throws IOException {
         return ((KucoinMarketDataService) exchange.getMarketDataService())
-                .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min15);
+                .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min5);
     }
 
     public static float[] getPredict(KucoinKline kucoinKline, MultiLayerNetwork net) {

@@ -58,7 +58,7 @@ public class StrategyController {
         kucoinKlines.forEach(kucoinKline -> loadBarSeries(barSeries, kucoinKline));
 
         List<String> listResult = new ArrayList<>();
-        for (int i = 300; i < kucoinKlines.size() - PREDICT_DEEP; i++) {
+        for (int i = 288; i < kucoinKlines.size() - PREDICT_DEEP; i++) {
 
             listResult.add(ZonedDateTime.ofInstant(Instant.ofEpochSecond(kucoinKlines.get(i).getTime()), ZoneOffset.UTC) + " " +
                            "  " + (movingMomentumStrategy.shouldEnter(i) ? " shouldEnter " : " ") +

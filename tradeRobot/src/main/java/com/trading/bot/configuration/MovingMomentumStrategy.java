@@ -6,13 +6,8 @@ import org.ta4j.core.Rule;
 import org.ta4j.core.Strategy;
 import org.ta4j.core.indicators.EMAIndicator;
 import org.ta4j.core.indicators.MACDIndicator;
-import org.ta4j.core.indicators.StochasticOscillatorKIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
-import org.ta4j.core.rules.CrossedDownIndicatorRule;
-import org.ta4j.core.rules.CrossedUpIndicatorRule;
-import org.ta4j.core.rules.OverIndicatorRule;
-import org.ta4j.core.rules.UnderIndicatorRule;
-import software.amazon.ion.Decimal;
+import org.ta4j.core.rules.*;
 
 public class MovingMomentumStrategy {
 
@@ -32,20 +27,15 @@ public class MovingMomentumStrategy {
         EMAIndicator shortEma = new EMAIndicator(closePrice, 50);
         EMAIndicator longEma = new EMAIndicator(closePrice, 200);
 
-        StochasticOscillatorKIndicator stochasticOscillK = new StochasticOscillatorKIndicator(series, 14);
-
-        MACDIndicator macd = new MACDIndicator(closePrice);
-        EMAIndicator emaMacd = new EMAIndicator(macd, 9);
+        MACDIndicator macd = new MACDIndicator(closePrice, 12, 26);
+        EMAIndicator signal = new EMAIndicator(macd, 9);
 
         // Entry rule
         Rule entryRule = new OverIndicatorRule(shortEma, longEma) // Trend
-            .and(new CrossedDownIndicatorRule(stochasticOscillK, Decimal.valueOf(20))); // Signal 1
-//            .and(new OverIndicatorRule(macd, emaMacd)); // Signal 2
+            .and(new CrossedDownIndicatorRule(signal, macd)); // Signal 1
 
         // Exit rule
-        Rule exitRule = new UnderIndicatorRule(shortEma, longEma) // Trend
-            .and(new CrossedUpIndicatorRule(stochasticOscillK, Decimal.valueOf(80))); // Signal 1
-//            .and(new UnderIndicatorRule(macd, emaMacd)); // Signal 2
+        Rule exitRule = new CrossedUpIndicatorRule(signal, macd); // Signal 1
 
         return new BaseStrategy(entryRule, exitRule);
     }
