@@ -7,7 +7,9 @@ import org.ta4j.core.Strategy;
 import org.ta4j.core.indicators.EMAIndicator;
 import org.ta4j.core.indicators.MACDIndicator;
 import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
+import org.ta4j.core.indicators.volume.ChaikinMoneyFlowIndicator;
 import org.ta4j.core.rules.*;
+import software.amazon.ion.Decimal;
 
 public class MovingMomentumStrategy {
 
@@ -27,12 +29,15 @@ public class MovingMomentumStrategy {
         EMAIndicator shortEma = new EMAIndicator(closePrice, 50);
         EMAIndicator longEma = new EMAIndicator(closePrice, 200);
 
-        MACDIndicator macd = new MACDIndicator(closePrice, 12, 26);
+        MACDIndicator macd = new MACDIndicator(closePrice);
         EMAIndicator signal = new EMAIndicator(macd, 9);
+
+        ChaikinMoneyFlowIndicator moneyFlowIndicator = new ChaikinMoneyFlowIndicator(series, 20);
 
         // Entry rule
         Rule entryRule = new OverIndicatorRule(shortEma, longEma) // Trend
-            .and(new CrossedDownIndicatorRule(signal, macd)); // Signal 1
+            .and(new CrossedDownIndicatorRule(signal, macd)) // Signal 1
+            .and(new OverIndicatorRule(moneyFlowIndicator, Decimal.ZERO)); // Signal 2
 
         // Exit rule
         Rule exitRule = new CrossedUpIndicatorRule(signal, macd); // Signal 1
