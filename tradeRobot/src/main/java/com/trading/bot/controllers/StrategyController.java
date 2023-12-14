@@ -32,28 +32,21 @@ import static com.trading.bot.util.TradeUtil.loadBarSeries;
 public class StrategyController {
     /** Logger. */
     private final Exchange exchange;
-    private final MultiLayerNetwork net;
 
-    public StrategyController(Exchange exchange, MultiLayerNetwork net) {
+    public StrategyController(Exchange exchange) {
         this.exchange = exchange;
-        this.net = net;
     }
 
     @GetMapping(path = "predictStrategy")
     public List<String> checkPredict() throws IOException {
         final long startDate = LocalDateTime.now(ZoneOffset.UTC)
             .truncatedTo(ChronoUnit.DAYS)
-            .minusDays(8)
+            .minusDays(7)
             .toEpochSecond(ZoneOffset.UTC);
-        final long endDate = LocalDateTime.now(ZoneOffset.UTC)
-            .truncatedTo(ChronoUnit.DAYS)
-            .minusDays(1)
-            .toEpochSecond(ZoneOffset.UTC);
-        final double avgCandle = getAvgCandle(exchange);
         final BarSeries barSeries = new BaseBarSeries();
         final Strategy movingMomentumStrategy = MovingMomentumStrategy.buildStrategy(barSeries);
 
-        final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
+        final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
         Collections.reverse(kucoinKlines);
         kucoinKlines.forEach(kucoinKline -> loadBarSeries(barSeries, kucoinKline));
 
@@ -62,7 +55,7 @@ public class StrategyController {
 
             listResult.add(ZonedDateTime.ofInstant(Instant.ofEpochSecond(kucoinKlines.get(i).getTime()), ZoneOffset.UTC) + " " +
                            "  " + (movingMomentumStrategy.shouldEnter(i) ? " shouldEnter " : " ") +
-                           "  " + (movingMomentumStrategy.shouldExit(i) ? " shouldExit " : " "));
+                           "  " + (movingMomentumStrategy.shouldExit(i) ? " shouldExit " : " ") + " " + kucoinKlines.get(i).getClose());
             listResult.add("--------------------------");
         }
 

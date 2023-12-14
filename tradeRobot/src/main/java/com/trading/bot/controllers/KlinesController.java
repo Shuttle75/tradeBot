@@ -23,11 +23,11 @@ import static com.trading.bot.util.TradeUtil.*;
 public class KlinesController {
     /** Logger. */
     private final Exchange exchange;
-    private final MultiLayerNetwork net;
+//    private final MultiLayerNetwork net;
 
-    public KlinesController(Exchange exchange, MultiLayerNetwork net) {
+    public KlinesController(Exchange exchange) {
         this.exchange = exchange;
-        this.net = net;
+//        this.net = net;
     }
 
     @GetMapping(path = "predict")
@@ -47,42 +47,42 @@ public class KlinesController {
         final List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, endDate);
         Collections.reverse(kucoinKlines);
 
-        net.rnnClearPreviousState();
-        for (int i = 0; i < 96; i++) {
-            getPredict(kucoinKlines.get(i), net);
-        }
+//        net.rnnClearPreviousState();
+//        for (int i = 0; i < 96; i++) {
+//            getPredict(kucoinKlines.get(i), net);
+//        }
 
         List<String> listResult = new ArrayList<>();
         for (int i = 96; i < kucoinKlines.size() - PREDICT_DEEP; i++) {
-            float[] floatResult = getPredict(kucoinKlines.get(i), net);
+//            float[] floatResult = getPredict(kucoinKlines.get(i), net);
             int[] intLabels = new int[OUTPUT_SIZE];
             intLabels[getDelta(kucoinKlines, i)] = 1;
 
             if (intLabels[0] == 1) {
-                if (floatResult[0] > 0.7) {
-                    goodMark++;
-                } else {
-                    wrongMark++;
-                }
+//                if (floatResult[0] > 0.7) {
+//                    goodMark++;
+//                } else {
+//                    wrongMark++;
+//                }
             }
             if (intLabels[2] == 1) {
-                if (floatResult[2] > 0.7) {
-                    goodMark++;
-                } else {
-                    wrongMark++;
-                }
+//                if (floatResult[2] > 0.7) {
+//                    goodMark++;
+//                } else {
+//                    wrongMark++;
+//                }
             }
 
-            listResult.add(intLabels[0] + "    " +
-                           intLabels[1] + "    " +
-                           intLabels[2] + "    ");
-            listResult.add(String.format("%.2f", floatResult[0]) + " " +
-                           String.format("%.2f", floatResult[1]) + " " +
-                           String.format("%.2f", floatResult[2]) + " " +
-                           ZonedDateTime.ofInstant(Instant.ofEpochSecond(kucoinKlines.get(i).getTime()), ZoneOffset.UTC) + " " +
-                           (floatResult[2] > 0.7 ? " +++++ " : "") + " " +
-                           (floatResult[0] > 0.7 ? " ----- " : ""));
-            listResult.add("--------------------------");
+//            listResult.add(intLabels[0] + "    " +
+//                           intLabels[1] + "    " +
+//                           intLabels[2] + "    ");
+//            listResult.add(String.format("%.2f", floatResult[0]) + " " +
+//                           String.format("%.2f", floatResult[1]) + " " +
+//                           String.format("%.2f", floatResult[2]) + " " +
+//                           ZonedDateTime.ofInstant(Instant.ofEpochSecond(kucoinKlines.get(i).getTime()), ZoneOffset.UTC) + " " +
+//                           (floatResult[2] > 0.7 ? " +++++ " : "") + " " +
+//                           (floatResult[0] > 0.7 ? " ----- " : ""));
+//            listResult.add("--------------------------");
         }
 
         listResult.add(" GoodMark = " + goodMark + ", WrongMark = " + wrongMark + ", K = " + goodMark / (float)(goodMark + wrongMark));

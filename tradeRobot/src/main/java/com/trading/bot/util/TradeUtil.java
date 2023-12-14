@@ -19,8 +19,7 @@ import java.time.ZonedDateTime;
 import java.util.*;
 
 import static com.trading.bot.configuration.BotConfig.*;
-import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min15;
-import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min5;
+import static org.knowm.xchange.kucoin.dto.KlineIntervalType.*;
 
 public class TradeUtil {
 
