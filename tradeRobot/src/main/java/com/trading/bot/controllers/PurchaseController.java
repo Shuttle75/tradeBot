@@ -5,9 +5,9 @@ import org.knowm.xchange.Exchange;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.ta4j.core.BarSeries;
-import org.ta4j.core.BaseBarSeries;
-import org.ta4j.core.Strategy;
+import org.ta4j.core.*;
+import org.ta4j.core.num.DecimalNum;
+import org.ta4j.core.num.Num;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -42,15 +42,16 @@ public class PurchaseController {
         long startDate = LocalDateTime.of(2023, 11, 2, 0 ,0).toEpochSecond(ZoneOffset.UTC);
         long endDate;
 
-        boolean purchased = false;
-        BigDecimal purchasePrice = new BigDecimal(0);
-        BigDecimal walletTrade = new BigDecimal(1800);
-        BigDecimal volume = new BigDecimal(1800);
+        Num walletTrade = DecimalNum.valueOf(1800);
         long purchaseDate = 0;
         List<String> listResult = new ArrayList<>();
         List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, trainDate, startDate);
         Collections.reverse(kucoinKlines);
         kucoinKlines.forEach(kucoinKline -> loadBarSeries(barSeries, kucoinKline));
+
+        TradingRecord tradingRecord = new BaseTradingRecord();
+        tradingRecord.enter(0, DecimalNum.valueOf(100), DecimalNum.valueOf(40));
+        tradingRecord.exit(1, DecimalNum.valueOf(100), DecimalNum.valueOf(40));
 
         for (int day = 2; day < 30; day++) {
             startDate = LocalDateTime.of(2023, 11, day, 0 ,0).toEpochSecond(ZoneOffset.UTC);
@@ -62,31 +63,27 @@ public class PurchaseController {
 
 
             for (int i = 0; i < kucoinKlines.size(); i++) {
-                int seriesIndex = 288 * (day - 1) + i;
-                BigDecimal startWalletTrade = walletTrade;
+                int index = 96 * (day - 1) + i;
+                Num startWalletTrade = walletTrade;
 
-                if (!purchased
-                        && movingMomentumStrategy.shouldEnter(seriesIndex)) {
-                    purchasePrice = kucoinKlines.get(i).getClose();
+                if (tradingRecord.isClosed()
+                        && movingMomentumStrategy.shouldEnter(index, tradingRecord)) {
                     purchaseDate = kucoinKlines.get(i).getTime();
-                    volume = kucoinKlines.get(i).getVolume();
-                    purchased = true;
+                    tradingRecord.enter(index, DecimalNum.valueOf(kucoinKlines.get(i).getClose()), DecimalNum.valueOf(40));
                 }
 
-                if (purchased
-                        && movingMomentumStrategy.shouldExit(seriesIndex)) {
-                    walletTrade = walletTrade.multiply(kucoinKlines.get(i).getClose()).divide(purchasePrice, RoundingMode.HALF_UP);
-                    purchased = false;
+                if (!tradingRecord.isClosed()
+                        && movingMomentumStrategy.shouldExit(index, tradingRecord)) {
+                    tradingRecord.exit(index, DecimalNum.valueOf(kucoinKlines.get(i).getClose()), DecimalNum.valueOf(40));
+                    walletTrade = walletTrade.plus(tradingRecord.getLastPosition().getProfit());
 
                     listResult.add(ZonedDateTime.ofInstant(Instant.ofEpochSecond(purchaseDate), ZoneOffset.UTC) + " " +
                                    ZonedDateTime.ofInstant(Instant.ofEpochSecond(kucoinKlines.get(i).getTime()), ZoneOffset.UTC) + "   " +
-                                   new DecimalFormat("#0.000").format(purchasePrice) + " " +
-                                   new DecimalFormat("#0.000").format(kucoinKlines.get(i).getClose()) + "   " +
-                                   new DecimalFormat("#0.00").format(startWalletTrade) + " " +
-                                   new DecimalFormat("#0.00").format(walletTrade) + " " +
-                                   new DecimalFormat("#0.00").format(walletTrade.subtract(startWalletTrade)) + "   " +
-                            ((kucoinKlines.get(i).getTime() - purchaseDate) / 60) + " ----- " +
-                            new DecimalFormat("#0.000").format(volume));
+                                   new DecimalFormat("#0.000").format(tradingRecord.getLastPosition().getEntry().getPricePerAsset().doubleValue()) + " " +
+                                   new DecimalFormat("#0.000").format(tradingRecord.getLastPosition().getExit().getPricePerAsset().doubleValue()) + "   " +
+                                   new DecimalFormat("#0.00").format(startWalletTrade.doubleValue()) + " " +
+                                   new DecimalFormat("#0.00").format(walletTrade.doubleValue()) + " " +
+                                   new DecimalFormat("#0.00").format(tradingRecord.getLastPosition().getProfit().doubleValue()));
                 }
             }
             listResult.add("Day " + day);
