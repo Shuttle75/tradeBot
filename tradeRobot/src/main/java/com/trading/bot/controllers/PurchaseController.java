@@ -63,7 +63,7 @@ public class PurchaseController {
 
 
             for (int i = 0; i < kucoinKlines.size(); i++) {
-                int index = 96 * (day - 1) + i;
+                int index = 288 * (day - 1) + i;
                 Num startWalletTrade = walletTrade;
 
                 if (tradingRecord.isClosed()
