@@ -56,37 +56,37 @@ public class BotConfig {
         return ExchangeFactory.INSTANCE.createExchange(exchangeSpecification);
     }
 
-//    @Bean
-//    public MultiLayerNetwork getModel() throws IOException {
-//        final String keyName = CURRENCY_PAIR.base + ".zip";
-//        final String path = FilenameUtils.concat(System.getProperty("java.io.tmpdir"), keyName);
-//        final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
-//                .withRegion(Regions.EU_CENTRAL_1)
-//                .build();
-//
-//        try {
-//            S3Object o = s3.getObject(bucketName, keyName);
-//            S3ObjectInputStream s3is = o.getObjectContent();
-//            FileOutputStream fos = new FileOutputStream(path);
-//            byte[] readBuf = new byte[1024];
-//            int readLen;
-//            while ((readLen = s3is.read(readBuf)) > 0) {
-//                fos.write(readBuf, 0, readLen);
-//            }
-//            s3is.close();
-//            fos.close();
-//        } catch (AmazonServiceException e) {
-//            logger.error(e.getErrorMessage());
-//            System.exit(1);
-//        } catch (IOException e) {
-//            logger.error(e.getMessage());
-//            System.exit(1);
-//        }
-//
-//        MultiLayerNetwork net = MultiLayerNetwork.load(new File(path), true);
-//        logger.info("MultiLayerNetwork loaded from S3");
-//        net.rnnClearPreviousState();
-//
-//        return net;
-//    }
+    @Bean
+    public MultiLayerNetwork getModel() throws IOException {
+        final String keyName = CURRENCY_PAIR.base + ".zip";
+        final String path = FilenameUtils.concat(System.getProperty("java.io.tmpdir"), keyName);
+        final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
+                .withRegion(Regions.EU_CENTRAL_1)
+                .build();
+
+        try {
+            S3Object o = s3.getObject(bucketName, keyName);
+            S3ObjectInputStream s3is = o.getObjectContent();
+            FileOutputStream fos = new FileOutputStream(path);
+            byte[] readBuf = new byte[1024];
+            int readLen;
+            while ((readLen = s3is.read(readBuf)) > 0) {
+                fos.write(readBuf, 0, readLen);
+            }
+            s3is.close();
+            fos.close();
+        } catch (AmazonServiceException e) {
+            logger.error(e.getErrorMessage());
+            System.exit(1);
+        } catch (IOException e) {
+            logger.error(e.getMessage());
+            System.exit(1);
+        }
+
+        MultiLayerNetwork net = MultiLayerNetwork.load(new File(path), true);
+        logger.info("MultiLayerNetwork loaded from S3");
+        net.rnnClearPreviousState();
+
+        return net;
+    }
 }

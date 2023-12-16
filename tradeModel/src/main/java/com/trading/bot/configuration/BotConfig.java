@@ -64,7 +64,7 @@ public class BotConfig {
     public String exchangeSecretKey;
     @Value("${exchange.passphrase}")
     public String exchangePassphrase;
-    public static final CurrencyPair CURRENCY_PAIR = new CurrencyPair("LTC", "USDT");
+    public static final CurrencyPair CURRENCY_PAIR = new CurrencyPair("SOL", "USDT");
 
     @Bean
     public Exchange getXChangeExchange() {

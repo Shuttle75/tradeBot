@@ -70,7 +70,7 @@ public class Trader {
         kucoinKlines.forEach(kucoinKline -> loadBarSeries(barSeries, kucoinKline));
     }
 
-    @Scheduled(cron = "30 */5 * * * *")
+//    @Scheduled(cron = "30 */5 * * * *")
     public void predict() throws IOException {
         final long startDate = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(30).toEpochSecond(ZoneOffset.UTC);
         List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
@@ -87,7 +87,7 @@ public class Trader {
         logger.info("{}", rates);
     }
 
-    @Scheduled(cron = "5/10 * * * * *")
+//    @Scheduled(cron = "5/10 * * * * *")
     public void sell() throws IOException {
         if (isNull(prevKline)) {
             return;                 // When prediction not run before
