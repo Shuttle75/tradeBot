@@ -11,6 +11,7 @@ import org.ta4j.core.BarSeries;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -41,14 +42,14 @@ public class TradeUtil {
     }
 
     public static int getDelta(List<KucoinKline> kucoinKlines, int i) {
-        BigDecimal data = kucoinKlines.get(i + PREDICT_DEEP).getClose()
-            .subtract(kucoinKlines.get(i).getClose());
+        BigDecimal delta = kucoinKlines.get(i + PREDICT_DEEP).getClose()
+            .divide(kucoinKlines.get(i).getClose(), 6, RoundingMode.HALF_UP)
+            .subtract(BigDecimal.ONE)
+            .multiply(BigDecimal.valueOf(100));
 
-        float currencyDelta = kucoinKlines.get(i).getClose().movePointLeft(3).floatValue() * DELTA_PRICE;
-
-        if (data.floatValue() > currencyDelta) {
+        if (delta.floatValue() > UP_PERCENT) {
             return  2;
-        } else if (data.floatValue() < -currencyDelta) {
+        } else if (delta.floatValue() < -DOWN_PERCENT) {
             return  0;
         } else {
             return 1;

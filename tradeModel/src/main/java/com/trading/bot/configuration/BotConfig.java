@@ -49,10 +49,11 @@ public class BotConfig {
     public static final int INPUT_SIZE = 4;
     public static final int LAYER_SIZE = 48;
     public static final int OUTPUT_SIZE = 3;
-    public static final int TRAIN_EXAMPLES = 28;
-    public static final int TRAIN_KLINES = 192;
-    public static final int PREDICT_DEEP = 4;
-    public static final float DELTA_PRICE = 5F;
+    public static final int TRAIN_EXAMPLES = 8;
+    public static final int TRAIN_KLINES = 672;
+    public static final int PREDICT_DEEP = 8;
+    public static final float UP_PERCENT = 2F;
+    public static final float DOWN_PERCENT = 1F;
 
     @Value("${model.bucket}")
     public String bucketName;
@@ -87,6 +88,7 @@ public class BotConfig {
                 .updater(new Adam())
                 .list()
                 .layer(new LSTM.Builder().activation(Activation.TANH).nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
+                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE / 4).build())
                 .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
                         .activation(Activation.SOFTMAX).nOut(OUTPUT_SIZE).build())
                 .build();
@@ -109,7 +111,7 @@ public class BotConfig {
             throws IOException {
         final String keyName = CURRENCY_PAIR.base + ".zip";
         final String path = FilenameUtils.concat(System.getProperty("java.io.tmpdir"), keyName);
-        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC).minusDays(7).truncatedTo(ChronoUnit.DAYS);
+        final LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC).minusDays(15).truncatedTo(ChronoUnit.DAYS);
         final AmazonS3 s3 = AmazonS3ClientBuilder.standard().withRegion(Regions.EU_CENTRAL_1).build();
 
         MultiLayerNetwork net = new MultiLayerNetwork(config);

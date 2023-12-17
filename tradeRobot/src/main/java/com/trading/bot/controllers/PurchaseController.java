@@ -58,6 +58,7 @@ public class PurchaseController {
         BigDecimal walletUSDTBefore = BigDecimal.valueOf(0);
         BigDecimal exitPrice = BigDecimal.valueOf(0);
         BigDecimal walletBase = BigDecimal.valueOf(0);
+        BigDecimal maxPrice = BigDecimal.valueOf(0);
         List<String> listResult = new ArrayList<>();
         List<KucoinKline> kucoinKlines = ((KucoinMarketDataService) exchange.getMarketDataService())
                 .getKucoinKlines(
@@ -80,13 +81,18 @@ public class PurchaseController {
                             min15);
             Collections.reverse(kucoinKlines);
 
+            maxPrice = BigDecimal.ZERO;
             for (int i = 0; i < kucoinKlines.size(); i++) {
                 float[] floatResult = getPredict(kucoinKlines.get(i), net);
 
                 final int index = 288 + 288 * day + i;
                 final BigDecimal closePrice = kucoinKlines.get(i).getClose();
 
-                if (tradingRecord.isClosed() && floatResult[2] > 0.8) {
+                if (closePrice.compareTo(maxPrice) > 0) {
+                    maxPrice = closePrice;
+                }
+
+                if (tradingRecord.isClosed() && floatResult[2] > 0.3) {
 
                     purchaseDate = kucoinKlines.get(i).getTime();
                     walletUSDTBefore = walletUSDT;
@@ -96,16 +102,16 @@ public class PurchaseController {
                     tradingRecord.enter(index, DecimalNum.valueOf(closePrice), DecimalNum.valueOf(walletBase));
                 }
 
-//                if (!tradingRecord.isClosed()
-//                        && DecimalNum.valueOf(closePrice)
-//                            .dividedBy(tradingRecord.getCurrentPosition().getEntry().getPricePerAsset())
-//                            .isLessThan(DecimalNum.valueOf(stopLoss.divide(BigDecimal.valueOf(100), 3, RoundingMode.HALF_UP)))
-//                        && (walletBase.compareTo(BigDecimal.valueOf(0)) > 0)) {
-//
-//                        walletUSDT = walletUSDT.add(walletBase.multiply(closePrice));
-//                        walletBase = BigDecimal.valueOf(0);
-//                        exitPrice = closePrice;
-//                }
+                if (!tradingRecord.isClosed()
+                        && closePrice
+                               .divide(maxPrice, 6, RoundingMode.HALF_UP)
+                               .compareTo(stopLoss.divide(BigDecimal.valueOf(100), 3, RoundingMode.HALF_UP)) < 0
+                        && (walletBase.compareTo(BigDecimal.valueOf(0)) > 0)) {
+
+                        walletUSDT = walletUSDT.add(walletBase.multiply(closePrice));
+                        walletBase = BigDecimal.valueOf(0);
+                        exitPrice = closePrice;
+                }
 
                 if (!tradingRecord.isClosed() && floatResult[0] > 0.8) {
 
