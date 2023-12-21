@@ -56,9 +56,9 @@ public class PurchaseController {
 
         long purchaseDate = 0;
         BigDecimal walletUSDTBefore = BigDecimal.valueOf(0);
-        BigDecimal exitPrice = BigDecimal.valueOf(0);
-        BigDecimal walletBase = BigDecimal.valueOf(0);
-        BigDecimal maxPrice = BigDecimal.valueOf(0);
+        BigDecimal exitPrice = BigDecimal.ZERO;
+        BigDecimal walletBase = BigDecimal.ZERO;
+        BigDecimal maxPrice;
         List<String> listResult = new ArrayList<>();
         List<KucoinKline> kucoinKlines = ((KucoinMarketDataService) exchange.getMarketDataService())
                 .getKucoinKlines(
@@ -123,6 +123,8 @@ public class PurchaseController {
                     } else {
                         tradingRecord.exit(index, DecimalNum.valueOf(exitPrice), tradingRecord.getCurrentPosition().getEntry().getAmount());
                     }
+
+                    maxPrice = BigDecimal.ZERO;
 
                     listResult.add(ZonedDateTime.ofInstant(Instant.ofEpochSecond(purchaseDate), ZoneOffset.UTC) + " " +
                                    ZonedDateTime.ofInstant(Instant.ofEpochSecond(kucoinKlines.get(i).getTime()), ZoneOffset.UTC) + "   " +
