@@ -88,18 +88,19 @@ public class PurchaseController {
                 final int index = 288 + 288 * day + i;
                 final BigDecimal closePrice = kucoinKlines.get(i).getClose();
 
-                if (closePrice.compareTo(maxPrice) > 0) {
-                    maxPrice = closePrice;
-                }
-
-                if (tradingRecord.isClosed() && floatResult[2] > 0.3) {
+                if (tradingRecord.isClosed() && floatResult[2] > 0.7) {
 
                     purchaseDate = kucoinKlines.get(i).getTime();
                     walletUSDTBefore = walletUSDT;
                     walletBase = walletUSDT.divide(closePrice, 0, RoundingMode.DOWN);
                     walletUSDT = walletUSDT.subtract(walletBase.multiply(closePrice));
+                    maxPrice = closePrice;
 
                     tradingRecord.enter(index, DecimalNum.valueOf(closePrice), DecimalNum.valueOf(walletBase));
+                }
+
+                if (!tradingRecord.isClosed() && closePrice.compareTo(maxPrice) > 0) {
+                    maxPrice = closePrice;
                 }
 
                 if (!tradingRecord.isClosed()
@@ -113,7 +114,7 @@ public class PurchaseController {
                         exitPrice = closePrice;
                 }
 
-                if (!tradingRecord.isClosed() && floatResult[0] > 0.8) {
+                if (!tradingRecord.isClosed() && floatResult[0] > 0.7) {
 
                     if (walletBase.compareTo(BigDecimal.valueOf(0)) > 0) {
                         tradingRecord.exit(index, DecimalNum.valueOf(closePrice), tradingRecord.getCurrentPosition().getEntry().getAmount());
@@ -123,8 +124,6 @@ public class PurchaseController {
                     } else {
                         tradingRecord.exit(index, DecimalNum.valueOf(exitPrice), tradingRecord.getCurrentPosition().getEntry().getAmount());
                     }
-
-                    maxPrice = BigDecimal.ZERO;
 
                     listResult.add(ZonedDateTime.ofInstant(Instant.ofEpochSecond(purchaseDate), ZoneOffset.UTC) + " " +
                                    ZonedDateTime.ofInstant(Instant.ofEpochSecond(kucoinKlines.get(i).getTime()), ZoneOffset.UTC) + "   " +
