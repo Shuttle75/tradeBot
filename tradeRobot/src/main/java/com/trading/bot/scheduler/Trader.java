@@ -6,7 +6,6 @@ import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.ta4j.core.BarSeries;
 import org.ta4j.core.BaseBarSeries;
@@ -21,11 +20,13 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
-import java.util.function.ToDoubleFunction;
+import java.util.Collections;
+import java.util.List;
 
-import static com.trading.bot.configuration.BotConfig.TREND_QUEUE;
-import static com.trading.bot.util.TradeUtil.*;
+import static com.trading.bot.util.TradeUtil.getKucoinKlines;
+import static com.trading.bot.util.TradeUtil.getPredict;
+import static com.trading.bot.util.TradeUtil.loadBarSeries;
+import static com.trading.bot.util.TradeUtil.printRates;
 import static java.util.Objects.isNull;
 
 @Service
@@ -37,7 +38,6 @@ public class Trader {
     private BigDecimal firstPrice;
     private KucoinKline prevKline;
     private float[] predict;
-    private final LimitedQueue<BigDecimal> trendQueue;
     private final BarSeries barSeries;
     private final MACDIndicator macdLine;
     private final EMAIndicator emaF;
@@ -53,7 +53,6 @@ public class Trader {
     public Trader(Exchange exchange, MultiLayerNetwork net) {
         this.exchange = exchange;
         this.net = net;
-        trendQueue = new LimitedQueue<>(TREND_QUEUE);
         barSeries = new BaseBarSeries();
         macdLine = new MACDIndicator(new ClosePriceIndicator(barSeries));
         emaF = new EMAIndicator(new ClosePriceIndicator(barSeries), 9);
@@ -76,8 +75,6 @@ public class Trader {
         List<KucoinKline> kucoinKlines = getKucoinKlines(exchange, startDate, 0L);
         prevKline = kucoinKlines.get(1);
 
-        trendQueue.add(prevKline.getClose().subtract(prevKline.getOpen()));
-
         loadBarSeries(barSeries, prevKline);
         macdHistogramValue = macdLine.getValue(barSeries.getEndIndex())
             .minus(emaF.getValue(barSeries.getEndIndex())).floatValue();
@@ -99,7 +96,6 @@ public class Trader {
 
         if (!purchased && predict[2] > tradeLimit && macdHistogramValue < 0) {
             firstPrice = lastKline.getClose();
-            trendQueue.clear();
             logger.info("BUY {} Price {}", curAccount, lastKline.getClose());
             purchased = true;
             return;
@@ -110,31 +106,6 @@ public class Trader {
             logger.info("SELL {} firstPrice {} newPrice {}", curAccount, firstPrice, lastKline.getClose());
             predict = new float[] {0F, 0F, 0F};
             purchased = false;
-        }
-    }
-
-    private static class LimitedQueue<E> extends LinkedList<E> {
-
-        private final int limit;
-
-        public LimitedQueue(int limit) {
-            this.limit = limit;
-        }
-
-        @Override
-        public boolean add(E o) {
-            boolean added = super.add(o);
-            while (added && size() > limit) {
-                super.remove();
-            }
-            return added;
-        }
-
-        public boolean trendDown(ToDoubleFunction<E> toDoubleFunction, double lastDelta) {
-            if (size() < limit) {
-                return false;
-            }
-            return (this.stream().mapToDouble(toDoubleFunction).sum() + lastDelta) < 0;
         }
     }
 }

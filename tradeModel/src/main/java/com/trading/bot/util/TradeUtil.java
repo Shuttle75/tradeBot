@@ -3,7 +3,6 @@ package com.trading.bot.util;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.kucoin.KucoinMarketDataService;
-import org.knowm.xchange.kucoin.dto.KlineIntervalType;
 import org.knowm.xchange.kucoin.dto.response.KucoinKline;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
@@ -14,7 +13,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.*;
@@ -32,52 +30,46 @@ public class TradeUtil {
                 .getKucoinKlines(CURRENCY_PAIR, startDate, endDate, min15);
     }
 
-    public static float[] getPredict(KucoinKline kucoinKline, MultiLayerNetwork net) {
+    public static float[] getPredict(KucoinKline kline, MultiLayerNetwork net) {
         try (INDArray indData = Nd4j.zeros(1, INPUT_SIZE, 1)) {
 
-            calcData(indData, kucoinKline, 0, 0);
+            calcData(indData, kline, 0, 0);
 
             return net.rnnTimeStep(indData).ravel().toFloatVector();
         }
     }
 
-    public static int getDelta(List<KucoinKline> kucoinKlines, int i) {
-        BigDecimal delta = kucoinKlines.get(i + PREDICT_DEEP).getClose()
-            .divide(kucoinKlines.get(i).getClose(), 6, RoundingMode.HALF_UP)
+    public static int getDelta(List<KucoinKline> klines, int i) {
+        BigDecimal delta = klines.get(i + PREDICT_DEEP).getClose()
+            .divide(klines.get(i).getClose(), 6, RoundingMode.HALF_UP)
             .subtract(BigDecimal.ONE)
             .multiply(BigDecimal.valueOf(100));
 
-        if (delta.floatValue() > UP_PERCENT) {
+        boolean isGreen0 = klines.get(i).getClose().compareTo(klines.get(i).getOpen()) > 0;
+        boolean isRedPrev1 = klines.get(i - 1).getClose().compareTo(klines.get(i - 1).getOpen()) < 0;
+        boolean isRedPrev2 = klines.get(i - 2).getClose().compareTo(klines.get(i - 2).getOpen()) < 0;
+
+        if (delta.floatValue() > UP_PERCENT && isGreen0 && isRedPrev1 && isRedPrev2) {
             return  2;
-        } else if (delta.floatValue() < -DOWN_PERCENT) {
+        } else if (delta.floatValue() < -DOWN_PERCENT && !isGreen0) {
             return  0;
         } else {
             return 1;
         }
     }
 
-    public static double getAvgCandle(Exchange exchange) throws IOException {
-        return getKucoinKlines(exchange, LocalDateTime.now(ZoneOffset.UTC).minusDays(7).toEpochSecond(ZoneOffset.UTC), 0L)
-            .stream()
-            .map(kucoinKline -> kucoinKline.getClose().subtract(kucoinKline.getOpen()))
-            .filter(candle -> candle.signum() > 0)
-            .mapToDouble(candle -> candle.doubleValue())
-            .average()
-            .orElse(Double.MIN_VALUE);
-    }
-
-    public static void calcData(INDArray indData, KucoinKline kucoinKline, int i, int y) {
+    public static void calcData(INDArray indData, KucoinKline kline, int i, int y) {
         indData.putScalar(new int[]{i, 0, y},
-                          kucoinKline.getClose().subtract(kucoinKline.getOpen()).floatValue());
-        indData.putScalar(new int[]{i, 1, y}, kucoinKline.getVolume().floatValue() * 0.0001);
+                          kline.getClose().subtract(kline.getOpen()).floatValue() / kline.getClose().floatValue() * 10F);
+        indData.putScalar(new int[]{i, 1, y}, kline.getAmount().floatValue() / 10_000_000F);
         indData.putScalar(new int[]{i, 2, y},
-                          kucoinKline.getClose().compareTo(kucoinKline.getOpen()) > 0 ?
-                          kucoinKline.getHigh().subtract(kucoinKline.getClose()).floatValue() :
-                          kucoinKline.getHigh().subtract(kucoinKline.getOpen()).floatValue());
+                          kline.getClose().compareTo(kline.getOpen()) > 0 ?
+                          kline.getHigh().subtract(kline.getClose()).floatValue() / kline.getClose().floatValue() * 10F :
+                          kline.getHigh().subtract(kline.getOpen()).floatValue() / kline.getClose().floatValue() * 10F);
         indData.putScalar(new int[]{i, 3, y},
-                          kucoinKline.getClose().compareTo(kucoinKline.getOpen()) > 0 ?
-                          kucoinKline.getOpen().subtract(kucoinKline.getLow()).floatValue() :
-                          kucoinKline.getClose().subtract(kucoinKline.getLow()).floatValue());
+                          kline.getClose().compareTo(kline.getOpen()) > 0 ?
+                          kline.getOpen().subtract(kline.getLow()).floatValue() / kline.getClose().floatValue() * 10F :
+                          kline.getClose().subtract(kline.getLow()).floatValue() / kline.getClose().floatValue() * 10F);
     }
 
     public static void loadBarSeries(BarSeries barSeries, KucoinKline kucoinKlines) {
