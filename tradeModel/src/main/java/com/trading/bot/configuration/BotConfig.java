@@ -50,8 +50,8 @@ public class BotConfig {
     public static final int INPUT_SIZE = 4;
     public static final int LAYER_SIZE = 48;
     public static final int OUTPUT_SIZE = 3;
-    public static final int TRAIN_EXAMPLES = 48;
-    public static final int TRAIN_KLINES = 672;
+    public static final int TRAIN_EXAMPLES = 24;
+    public static final int TRAIN_KLINES = 1344;
     public static final int HISTORY_DEEP = 2;
     public static final int PREDICT_DEEP = 8;
     public static final float UP_PERCENT = 1F;
