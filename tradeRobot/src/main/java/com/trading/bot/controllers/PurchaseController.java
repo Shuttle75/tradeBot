@@ -101,7 +101,7 @@ public class PurchaseController {
 
                 if (tradingRecord.isClosed()
                     && floatResult[2] > 0.7
-                    && strategy.shouldEnter(index, tradingRecord)
+//                    && strategy.shouldEnter(index, tradingRecord)
                 ) {
                     purchaseDate = klines.get(i).getTime();
                     walletUSDTBefore = walletUSDT;
@@ -115,7 +115,7 @@ public class PurchaseController {
 
                 if (!tradingRecord.isClosed()
                     && floatResult[0] > 0.7
-                    && strategy.shouldExit(index, tradingRecord)
+//                    && strategy.shouldExit(index, tradingRecord)
                 ) {
 
                     if (walletBase.compareTo(BigDecimal.valueOf(0)) > 0) {
@@ -133,7 +133,6 @@ public class PurchaseController {
                                    new DecimalFormat("#0.000").format(tradingRecord.getLastPosition().getExit().getPricePerAsset().doubleValue()) + "   " +
                                    new DecimalFormat("#0.00").format(walletUSDTBefore.doubleValue()) + " " +
                                    new DecimalFormat("#0.00").format(walletUSDT.doubleValue()) + " " +
-                                   new DecimalFormat("#0.00").format(tradingRecord.getLastPosition().getProfit().doubleValue()) + " ++ " +
                                    new DecimalFormat("#0.00").format(floatResult[0])  + " -- " + new DecimalFormat("#0.00").format(purchasePredict));
                 }
             }

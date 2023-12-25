@@ -45,13 +45,9 @@ public class TradeUtil {
             .subtract(BigDecimal.ONE)
             .multiply(BigDecimal.valueOf(100));
 
-        boolean isGreen0 = klines.get(i).getClose().compareTo(klines.get(i).getOpen()) > 0;
-        boolean isRedPrev1 = klines.get(i - 1).getClose().compareTo(klines.get(i - 1).getOpen()) < 0;
-        boolean isRedPrev2 = klines.get(i - 2).getClose().compareTo(klines.get(i - 2).getOpen()) < 0;
-
-        if (delta.floatValue() > UP_PERCENT && isGreen0 && isRedPrev1 && isRedPrev2) {
+        if (delta.floatValue() > UP_PERCENT) {
             return  2;
-        } else if (delta.floatValue() < -DOWN_PERCENT && !isGreen0) {
+        } else if (delta.floatValue() < -DOWN_PERCENT) {
             return  0;
         } else {
             return 1;
