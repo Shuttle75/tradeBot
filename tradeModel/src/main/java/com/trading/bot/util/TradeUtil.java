@@ -66,6 +66,8 @@ public class TradeUtil {
                           kline.getClose().compareTo(kline.getOpen()) > 0 ?
                           kline.getOpen().subtract(kline.getLow()).floatValue() / kline.getClose().floatValue() * 10F :
                           kline.getClose().subtract(kline.getLow()).floatValue() / kline.getClose().floatValue() * 10F);
+        indData.putScalar(new int[]{i, 4, y}, Instant.ofEpochSecond(kline.getTime()).atOffset(ZoneOffset.UTC).getDayOfWeek().getValue() * 0.12F
+                                              + Instant.ofEpochSecond(kline.getTime()).atOffset(ZoneOffset.UTC).getHour() * 0.005F);
     }
 
     public static void loadBarSeries(BarSeries barSeries, KucoinKline kucoinKlines) {

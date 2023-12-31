@@ -47,12 +47,11 @@ import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min15;
 @Configuration
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
-    public static final int INPUT_SIZE = 4;
+    public static final int INPUT_SIZE = 5;
     public static final int LAYER_SIZE = 48;
     public static final int OUTPUT_SIZE = 3;
-    public static final int TRAIN_EXAMPLES = 24;
-    public static final int TRAIN_KLINES = 1344;
-    public static final int HISTORY_DEEP = 2;
+    public static final int TRAIN_EXAMPLES = 8;
+    public static final int TRAIN_KLINES = 672;
     public static final int PREDICT_DEEP = 8;
     public static final float UP_PERCENT = 1F;
     public static final float DOWN_PERCENT = 0.8F;
@@ -127,8 +126,7 @@ public class BotConfig {
             while (i >= 0) {
                 LocalDateTime startDate = now.minusSeconds(
                         i * (long) TRAIN_KLINES * min15.getSeconds()
-                                + TRAIN_KLINES * min15.getSeconds()
-                                + HISTORY_DEEP * min15.getSeconds());
+                                + TRAIN_KLINES * min15.getSeconds());
                 LocalDateTime endDate = now.minusSeconds(
                         i * (long) TRAIN_KLINES * min15.getSeconds()
                                 - PREDICT_DEEP * min15.getSeconds());
@@ -143,8 +141,8 @@ public class BotConfig {
                 logger.info("startDate {} endDate {}", startDate, endDate);
 
                 for (int y = 0; y < TRAIN_KLINES; y++) {
-                    calcData(indData, klines.get(y + HISTORY_DEEP), i, y);
-                    indLabels.putScalar(new int[]{i, getDelta(klines, y + HISTORY_DEEP), y}, 1);
+                    calcData(indData, klines.get(y), i, y);
+                    indLabels.putScalar(new int[]{i, getDelta(klines, y), y}, 1);
                 }
 
                 i--;
