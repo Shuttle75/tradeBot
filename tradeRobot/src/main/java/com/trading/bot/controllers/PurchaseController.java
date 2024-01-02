@@ -48,7 +48,7 @@ public class PurchaseController {
     }
 
 /*
-    GET http://localhost:8080/purchase?baseSymbol=SOL&counterSymbol=USDT&startDate=2023-11-01T00:00:00&endDate=2023-12-01T00:00:00&walletUSDT=1800&stopLoss=95
+    GET http://localhost:8080/purchase?baseSymbol=SOL&counterSymbol=USDT&startDate=2023-11-01T00:00:00&endDate=2023-12-01T00:00:00&walletUSDT=1800
 */
     @GetMapping(path = "purchase")
     public List<String> checkPredict(
@@ -99,10 +99,7 @@ public class PurchaseController {
                 final int index = 96 + 96 * day + i;
                 final BigDecimal closePrice = klines.get(i).getClose();
 
-                if (tradingRecord.isClosed()
-                    && floatResult[2] > 0.7
-//                    && strategy.shouldEnter(index, tradingRecord)
-                ) {
+                if (tradingRecord.isClosed() && floatResult[2] > 0.7) {
                     purchaseDate = klines.get(i).getTime();
                     walletUSDTBefore = walletUSDT;
                     walletBase = walletUSDT.divide(closePrice, 0, RoundingMode.DOWN);
@@ -113,26 +110,19 @@ public class PurchaseController {
                     purchasePredict = floatResult[2];
                 }
 
-                if (!tradingRecord.isClosed()
-                    && floatResult[0] > 0.7
-//                    && strategy.shouldExit(index, tradingRecord)
-                ) {
+                if (!tradingRecord.isClosed() && floatResult[0] > 0.7) {
 
-                    if (walletBase.compareTo(BigDecimal.valueOf(0)) > 0) {
-                        tradingRecord.exit(index, DecimalNum.valueOf(closePrice), tradingRecord.getCurrentPosition().getEntry().getAmount());
-                        walletUSDT = walletUSDT.add(walletBase.multiply(closePrice));
-                        walletBase = BigDecimal.valueOf(0);
-                        exitPrice = closePrice;
-                    } else {
-                        tradingRecord.exit(index, DecimalNum.valueOf(exitPrice), tradingRecord.getCurrentPosition().getEntry().getAmount());
-                    }
+                    tradingRecord.exit(index, DecimalNum.valueOf(closePrice), tradingRecord.getCurrentPosition().getEntry().getAmount());
+                    walletUSDT = walletUSDT.add(walletBase.multiply(closePrice));
+                    walletBase = BigDecimal.valueOf(0);
 
                     listResult.add(ZonedDateTime.ofInstant(Instant.ofEpochSecond(purchaseDate), ZoneOffset.UTC) + " " +
                                    ZonedDateTime.ofInstant(Instant.ofEpochSecond(klines.get(i).getTime()), ZoneOffset.UTC) + "   " +
                                    new DecimalFormat("#0.000").format(tradingRecord.getLastPosition().getEntry().getPricePerAsset().doubleValue()) + " " +
                                    new DecimalFormat("#0.000").format(tradingRecord.getLastPosition().getExit().getPricePerAsset().doubleValue()) + "   " +
                                    new DecimalFormat("#0.00").format(walletUSDTBefore.doubleValue()) + " " +
-                                   new DecimalFormat("#0.00").format(walletUSDT.doubleValue()) + " " +
+                                   new DecimalFormat("#0.00").format(walletUSDT.doubleValue()) + "    " +
+                                   new DecimalFormat("#0.00").format(walletUSDT.subtract(walletUSDTBefore).doubleValue()) + " " +
                                    new DecimalFormat("#0.00").format(floatResult[0])  + " -- " + new DecimalFormat("#0.00").format(purchasePredict));
                 }
             }
