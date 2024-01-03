@@ -1,6 +1,5 @@
 package com.trading.bot.controllers;
 
-import com.trading.bot.configuration.MovingMomentumStrategy;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.knowm.xchange.Exchange;
 import org.knowm.xchange.currency.CurrencyPair;
@@ -10,10 +9,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.ta4j.core.BarSeries;
-import org.ta4j.core.BaseBarSeries;
 import org.ta4j.core.BaseTradingRecord;
-import org.ta4j.core.Strategy;
 import org.ta4j.core.TradingRecord;
 import org.ta4j.core.num.DecimalNum;
 
@@ -32,7 +28,6 @@ import java.util.List;
 
 
 import static com.trading.bot.util.TradeUtil.getPredict;
-import static com.trading.bot.util.TradeUtil.loadBarSeries;
 import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min15;
 
 @RestController
@@ -58,12 +53,8 @@ public class PurchaseController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             @RequestParam BigDecimal walletUSDT) throws IOException {
 
-        final BarSeries barSeries = new BaseBarSeries();
-        final Strategy strategy = MovingMomentumStrategy.buildStrategy(barSeries);
-
         long purchaseDate = 0;
         BigDecimal walletUSDTBefore = BigDecimal.valueOf(0);
-        BigDecimal exitPrice = BigDecimal.ZERO;
         BigDecimal walletBase = BigDecimal.ZERO;
         List<String> listResult = new ArrayList<>();
         List<KucoinKline> klines = ((KucoinMarketDataService) exchange.getMarketDataService())
@@ -73,13 +64,9 @@ public class PurchaseController {
                         startDate.toEpochSecond(ZoneOffset.UTC),
                         min15);
         Collections.reverse(klines);
-        klines.forEach(kline -> {
-            getPredict(kline, net);
-            loadBarSeries(barSeries, kline);
-        });
+        klines.forEach(kline -> getPredict(kline, net));
 
         TradingRecord tradingRecord = new BaseTradingRecord();
-        float purchasePredict = 0F;
         for (int day = 0; day < ChronoUnit.DAYS.between(startDate, endDate); day++) {
 
             klines = ((KucoinMarketDataService) exchange.getMarketDataService())
@@ -93,9 +80,6 @@ public class PurchaseController {
 
             for (int i = 0; i < klines.size(); i++) {
                 float[] floatResult = getPredict(klines.get(i), net);
-
-                loadBarSeries(barSeries, klines.get(i));
-
                 final int index = 96 + 96 * day + i;
                 final BigDecimal closePrice = klines.get(i).getClose();
 
@@ -106,8 +90,6 @@ public class PurchaseController {
                     walletUSDT = walletUSDT.subtract(walletBase.multiply(closePrice));
 
                     tradingRecord.enter(index, DecimalNum.valueOf(closePrice), DecimalNum.valueOf(walletBase));
-
-                    purchasePredict = floatResult[2];
                 }
 
                 if (!tradingRecord.isClosed() && floatResult[0] > 0.7) {
@@ -122,8 +104,7 @@ public class PurchaseController {
                                    new DecimalFormat("#0.000").format(tradingRecord.getLastPosition().getExit().getPricePerAsset().doubleValue()) + "   " +
                                    new DecimalFormat("#0.00").format(walletUSDTBefore.doubleValue()) + " " +
                                    new DecimalFormat("#0.00").format(walletUSDT.doubleValue()) + "    " +
-                                   new DecimalFormat("#0.00").format(walletUSDT.subtract(walletUSDTBefore).doubleValue()) + " " +
-                                   new DecimalFormat("#0.00").format(floatResult[0])  + " -- " + new DecimalFormat("#0.00").format(purchasePredict));
+                                   new DecimalFormat("#0.00").format(walletUSDT.subtract(walletUSDTBefore).doubleValue()));
                 }
             }
             listResult.add("Day " + day);

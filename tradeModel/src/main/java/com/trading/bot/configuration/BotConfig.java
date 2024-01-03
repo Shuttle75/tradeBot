@@ -48,13 +48,13 @@ import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min15;
 public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int INPUT_SIZE = 5;
-    public static final int LAYER_SIZE = 48;
+    public static final int LAYER_SIZE = 24;
     public static final int OUTPUT_SIZE = 3;
     public static final int TRAIN_EXAMPLES = 8;
     public static final int TRAIN_KLINES = 672;
     public static final int PREDICT_DEEP = 8;
-    public static final float UP_PERCENT = 1F;
-    public static final float DOWN_PERCENT = 0.8F;
+    public static final float UP_PERCENT = 2F;
+    public static final float DOWN_PERCENT = 1F;
 
     @Value("${model.bucket}")
     public String bucketName;
@@ -89,7 +89,8 @@ public class BotConfig {
                 .updater(new Adam())
                 .list()
                 .layer(new LSTM.Builder().activation(Activation.TANH).nIn(INPUT_SIZE).nOut(LAYER_SIZE).build())
-                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE).build())
+                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE).dropOut(0.9).build())
+                .layer(new LSTM.Builder().activation(Activation.TANH).nOut(LAYER_SIZE).dropOut(0.9).build())
                 .layer(new RnnOutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
                         .activation(Activation.SOFTMAX).nOut(OUTPUT_SIZE).build())
                 .build();
