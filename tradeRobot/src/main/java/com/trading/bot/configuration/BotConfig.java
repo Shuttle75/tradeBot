@@ -28,8 +28,7 @@ public class BotConfig {
     protected final Logger logger = LoggerFactory.getLogger(getClass().getName());
     public static final int INPUT_SIZE = 5;
     public static final int PREDICT_DEEP = 8;
-    public static final float UP_PERCENT = 1F;
-    public static final float DOWN_PERCENT = 0.8F;
+    public static final float PRICE_PERCENT = 1.6F;
 
     @Value("${model.bucket}")
     public String bucketName;
