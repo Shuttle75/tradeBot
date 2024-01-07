@@ -126,8 +126,7 @@ public class BotConfig {
             while (i >= 0) {
                 LocalDateTime startDate = now.minusSeconds(
                         i * (long) TRAIN_KLINES * min15.getSeconds()
-                                + TRAIN_KLINES * min15.getSeconds()
-                                + PREDICT_DEEP * min15.getSeconds());
+                                + TRAIN_KLINES * min15.getSeconds());
                 LocalDateTime endDate = now.minusSeconds(
                         i * (long) TRAIN_KLINES * min15.getSeconds()
                                 - PREDICT_DEEP * min15.getSeconds());
@@ -142,8 +141,8 @@ public class BotConfig {
                 logger.info("startDate {} endDate {}", startDate, endDate);
 
                 for (int y = 0; y < TRAIN_KLINES; y++) {
-                    calcData(indData, klines.get(y + PREDICT_DEEP), i, y);
-                    indLabels.putScalar(new int[]{i, getDelta(klines, y + PREDICT_DEEP), y}, 1);
+                    calcData(indData, klines.get(y), i, y);
+                    indLabels.putScalar(new int[]{i, getDelta(klines, y), y}, 1);
                 }
 
                 i--;

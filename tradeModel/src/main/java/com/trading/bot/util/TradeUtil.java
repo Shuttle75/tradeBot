@@ -21,6 +21,8 @@ import static com.trading.bot.configuration.BotConfig.*;
 import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min15;
 
 public class TradeUtil {
+    static int enterState = 0;
+    static int exitState = 2;
 
     private TradeUtil() {
     }
@@ -40,25 +42,29 @@ public class TradeUtil {
     }
 
     public static int getDelta(List<KucoinKline> klines, int i) {
-        BigDecimal minValue = klines.subList(i - PREDICT_DEEP, i + PREDICT_DEEP).stream()
-            .map(KucoinKline::getOpen)
-            .min(BigDecimal::compareTo)
-            .orElse(BigDecimal.ZERO);
-
-        BigDecimal maxValue = klines.subList(i - PREDICT_DEEP / 2, i + PREDICT_DEEP / 2).stream()
-            .map(KucoinKline::getOpen)
-            .max(BigDecimal::compareTo)
-            .orElse(BigDecimal.ZERO);
-
         BigDecimal delta = klines.get(i + PREDICT_DEEP).getClose()
-            .divide(klines.get(i).getOpen(), 12, RoundingMode.HALF_UP)
+            .divide(klines.get(i).getOpen(), 4, RoundingMode.HALF_UP)
             .subtract(BigDecimal.ONE)
             .multiply(BigDecimal.valueOf(100));
 
-        if (delta.floatValue() > PRICE_PERCENT && minValue.equals(klines.get(i).getOpen())) {
-            return 2;
-        } else if (delta.floatValue() < -PRICE_PERCENT / 4 && maxValue.equals(klines.get(i).getOpen())) {
-            return 0;
+        if (delta.floatValue() > PRICE_PERCENT && exitState > 1) {
+            enterState++;
+
+            if (enterState > 1) {
+                exitState = 0;
+                return 2;
+            } else {
+                return 1;
+            }
+        } else if (delta.floatValue() < -PRICE_PERCENT / 2 && enterState > 1) {
+            exitState++;
+
+            if (exitState > 1) {
+                enterState = 0;
+                return 0;
+            } else {
+                return 1;
+            }
         } else {
             return 1;
         }
