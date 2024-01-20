@@ -21,8 +21,6 @@ import static com.trading.bot.configuration.BotConfig.*;
 import static org.knowm.xchange.kucoin.dto.KlineIntervalType.min15;
 
 public class TradeUtil {
-    static int enterState = 0;
-    static int exitState = 2;
 
     private TradeUtil() {
     }
@@ -43,28 +41,14 @@ public class TradeUtil {
 
     public static int getDelta(List<KucoinKline> klines, int i) {
         BigDecimal delta = klines.get(i + PREDICT_DEEP).getClose()
-            .divide(klines.get(i).getOpen(), 4, RoundingMode.HALF_UP)
+            .divide(klines.get(i).getClose(), 6, RoundingMode.HALF_UP)
             .subtract(BigDecimal.ONE)
             .multiply(BigDecimal.valueOf(100));
 
-        if (delta.floatValue() > PRICE_PERCENT && exitState > 1) {
-            enterState++;
-
-            if (enterState > 1) {
-                exitState = 0;
-                return 2;
-            } else {
-                return 1;
-            }
-        } else if (delta.floatValue() < -PRICE_PERCENT / 2 && enterState > 1) {
-            exitState++;
-
-            if (exitState > 1) {
-                enterState = 0;
-                return 0;
-            } else {
-                return 1;
-            }
+        if (delta.floatValue() > PRICE_PERCENT) {
+            return  2;
+        } else if (delta.floatValue() < -PRICE_PERCENT / 2) {
+            return  0;
         } else {
             return 1;
         }
